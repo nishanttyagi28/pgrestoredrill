@@ -1,0 +1,8 @@
+name: sample
+source_kind: local
+source_uri: ../tests/fixtures/dumps
+rpo_minutes: 1440
+assertions_file: assertions.yaml
+enabled: true
+restore_timeout_seconds: 120
+statement_timeout_ms: 5000

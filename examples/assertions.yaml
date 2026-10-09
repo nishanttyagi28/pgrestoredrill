@@ -1,0 +1,12 @@
+- name: customers_present
+  type: rows_gte
+  sql: SELECT count(*) FROM customers
+  expected: 2
+- name: first_email
+  type: equals
+  sql: SELECT email FROM customers WHERE id = 1
+  expected: a@example.com
+- name: orders_are_fresh
+  type: max_age_minutes
+  sql: SELECT max(created_at) FROM orders
+  expected: 60
