@@ -20,6 +20,27 @@ FROM pg_class AS c
 JOIN pg_namespace AS n ON n.oid = c.relnamespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
   AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+UNION ALL
+SELECT 1
+FROM pg_extension
+WHERE extname <> 'plpgsql'
+UNION ALL
+SELECT 1
+FROM pg_namespace
+WHERE nspname <> 'public'
+  AND nspname <> 'information_schema'
+  AND left(nspname, 3) <> 'pg_'
+UNION ALL
+SELECT 1
+FROM pg_type AS t
+JOIN pg_namespace AS n ON n.oid = t.typnamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+UNION ALL
+SELECT 1
+FROM pg_proc AS p
+JOIN pg_namespace AS n ON n.oid = p.pronamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+  AND p.prokind IN ('f', 'p')
 LIMIT 1
 """
 
