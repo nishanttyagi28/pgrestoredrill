@@ -14,7 +14,7 @@ def judge(
     *,
     now: datetime | None = None,
 ) -> tuple[bool, str | None]:
-    rendered = render_observed(observed)
+    rendered = format_observed(observed)
     if spec.assertion_type == "rows_gte":
         return _rows_gte(observed, spec.expected), rendered
     if spec.assertion_type == "equals":
@@ -22,7 +22,7 @@ def judge(
     return _max_age(observed, spec.expected, now or datetime.now(UTC)), rendered
 
 
-def render_observed(value: object) -> str | None:
+def format_observed(value: object) -> str | None:
     if value is None:
         return None
     moment = _as_utc(value)
@@ -46,7 +46,7 @@ def _equals(observed: object, expected: int | float | str) -> bool:
             return _as_decimal(observed) == _as_decimal(expected)
         except (ArithmeticError, TypeError, ValueError):
             return False
-    return render_observed(observed) == str(expected)
+    return format_observed(observed) == str(expected)
 
 
 def _max_age(observed: object, expected: int | float | str, now: datetime) -> bool:
