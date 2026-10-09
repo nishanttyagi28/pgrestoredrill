@@ -1,0 +1,69 @@
+[project]
+name = "pgrestoredrill"
+version = "0.0.1"
+description = "Prove that Postgres custom-format backups actually restore."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Nishant Tyagi" }]
+dependencies = [
+  "alembic>=1.14,<2",
+  "psycopg[binary]>=3.2,<4",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.6,<3",
+  "pyyaml>=6.0.2,<7",
+  "sqlalchemy>=2.0.36,<3",
+  "structlog>=24.4,<26",
+]
+
+[project.scripts]
+pgrestoredrill = "pgrestoredrill.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<7",
+  "ruff>=0.8,<1",
+  "types-PyYAML>=6.0.12,<7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pgrestoredrill"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pgrestoredrill"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["pgrestoredrill"]
+pretty = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+  "--cov=pgrestoredrill",
+  "--cov-report=term-missing",
+  "--cov-fail-under=85",
+]
+
+[tool.coverage.run]
+source = ["pgrestoredrill"]
