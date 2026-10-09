@@ -43,7 +43,7 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pgrestoredrill"]
+known-first-party = ["pgrestoredrill", "tests"]
 
 [tool.ruff.format]
 quote-style = "double"
