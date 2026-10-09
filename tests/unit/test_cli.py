@@ -100,9 +100,7 @@ def test_summary_lists_assertions() -> None:
             dump_sha256="abc",
             restore_seconds=1.2,
             error="pg_restore exited 1",
-            assertions=(
-                AssertionOutcome("customers_present", False, "1", "2", 4),
-            ),
+            assertions=(AssertionOutcome("customers_present", False, "1", "2", 4),),
         )
     )
     assert "status: failed" in text
