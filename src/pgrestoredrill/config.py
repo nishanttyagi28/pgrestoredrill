@@ -17,8 +17,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str
-    target_url: str
+    # Empty until the environment or the caller supplies a URL. Validation rejects it.
+    database_url: str = ""
+    target_url: str = ""
     log_level: str = "INFO"
 
     @field_validator("database_url", "target_url")
