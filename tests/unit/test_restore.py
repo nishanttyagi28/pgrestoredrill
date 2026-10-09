@@ -10,7 +10,7 @@ import pytest
 from pgrestoredrill.errors import RestoreFailed, RestoreTimeout, TargetNotEmpty
 from pgrestoredrill.runner.restore import restore_dump
 
-_URL = "postgresql+psycopg://user:secret@localhost/pgrestoredrill_" + ("ab" * 16)
+_URL = "postgresql+psycopg://user:secret@localhost:5432/pgrestoredrill_" + ("ab" * 16)
 
 
 class Allow:
@@ -24,12 +24,52 @@ class Allow:
         return _URL
 
 
+class QueryPassword:
+    def assert_empty(self) -> None:
+        return None
+
+    def restore_url(self) -> str:
+        name = "pgrestoredrill_" + ("ab" * 16)
+        return f"postgresql://user@localhost/{name}?password=secret"
+
+
 class Refuse:
     def assert_empty(self) -> None:
         raise TargetNotEmpty("pgrestoredrill_" + ("ab" * 16))
 
     def restore_url(self) -> str:
         raise AssertionError("restore url should not be read")
+
+
+def test_password_is_only_in_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PGRESTOREDRILL_MARKER", "kept")
+    seen: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        seen["command"] = command
+        seen["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr("pgrestoredrill.runner.restore.subprocess.run", fake_run)
+    restore_dump(Path("backup.dump"), Allow(), 5)
+    command = seen["command"]
+    assert isinstance(command, list)
+    assert all("secret" not in str(part) for part in command)
+    env = seen["env"]
+    assert isinstance(env, dict)
+    assert env["PGPASSWORD"] == "secret"
+    assert env["PGRESTOREDRILL_MARKER"] == "kept"
+    assert command[command.index("--host") + 1] == "localhost"
+    assert command[command.index("--port") + 1] == "5432"
+    assert command[command.index("--username") + 1] == "user"
+    assert command[command.index("--dbname") + 1] == "pgrestoredrill_" + ("ab" * 16)
+    restore_dump(Path("backup.dump"), QueryPassword(), 5)
+    query_command = seen["command"]
+    assert isinstance(query_command, list)
+    assert all("secret" not in str(part) for part in query_command)
+    query_env = seen["env"]
+    assert isinstance(query_env, dict)
+    assert query_env["PGPASSWORD"] == "secret"
 
 
 def test_restore_command_flags(monkeypatch: pytest.MonkeyPatch) -> None:

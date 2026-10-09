@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
+  separate arguments. The password is passed only through `PGPASSWORD`.
+
 ### Added
 
 - Local custom-format restore drill. The newest `*.dump` in a folder is restored
