@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pytest
@@ -108,12 +107,12 @@ def test_summary_lists_assertions() -> None:
     assert "restore_seconds: 1.200" in text
 
 
-def test_configure_logging_omits_urls(caplog: pytest.LogCaptureFixture) -> None:
+def test_configure_logging_omits_urls(capsys: pytest.CaptureFixture[str]) -> None:
     configure_logging("INFO")
-    with caplog.at_level(logging.INFO):
-        structlog.get_logger().info("drill finished", drill="sample", status="passed")
-    assert "sample" in caplog.text
-    assert "postgresql://" not in caplog.text
+    structlog.get_logger().info("drill finished", drill="sample", status="passed")
+    captured = capsys.readouterr().err
+    assert "sample" in captured
+    assert "postgresql://" not in captured
 
 
 def _env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
