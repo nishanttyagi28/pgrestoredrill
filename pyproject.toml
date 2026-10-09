@@ -60,6 +60,7 @@ show_error_codes = true
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [
+  "--import-mode=importlib",
   "--cov=pgrestoredrill",
   "--cov-report=term-missing",
   "--cov-fail-under=85",
