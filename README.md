@@ -66,11 +66,15 @@ transaction.
 - `make fixture` writes `tests/fixtures/dumps/sample.dump`
 - `make drill` runs the sample drill
 - `make run` prints CLI help
+- `make up` / `make down` start and stop the Postgres 16 service in `compose.yaml`
 
 `make test` needs the same Postgres server and client tools. It creates and
-drops its own databases.
+drops its own databases. `make up` uses the example user, password, and port
+from `.env.example`. The server creates the `pgrestoredrill` and `postgres`
+databases.
 
 ## Limits
 
 Only Postgres custom-format dumps from a local folder are supported here.
-S3 sources, the run-history API, RPO alerts, Docker, and Kubernetes come later.
+`compose.yaml` can start a local Postgres 16 server. S3 sources, the
+run-history API, RPO alerts, a Docker restore target, and Kubernetes come later.

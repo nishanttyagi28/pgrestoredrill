@@ -15,6 +15,7 @@
 
 ### Added
 
+- `compose.yaml` starts Postgres 16 with the example settings from `.env.example`.
 - Local custom-format restore drill. The newest `*.dump` in a folder is restored
   into an empty throwaway database, read-only assertions run, and the run is
   stored.
