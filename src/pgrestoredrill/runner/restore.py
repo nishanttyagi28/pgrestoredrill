@@ -15,6 +15,39 @@ from pgrestoredrill.redact import redact
 from pgrestoredrill.targets.base import TargetProvider
 
 _STDERR_LIMIT = 2000
+_QUERY_ENV = {
+    "application_name": "PGAPPNAME",
+    "channel_binding": "PGCHANNELBINDING",
+    "connect_timeout": "PGCONNECT_TIMEOUT",
+    "gssencmode": "PGGSSENCMODE",
+    "gsslib": "PGGSSLIB",
+    "hostaddr": "PGHOSTADDR",
+    "keepalives": "PGKEEPALIVES",
+    "keepalives_count": "PGKEEPALIVESCOUNT",
+    "keepalives_idle": "PGKEEPALIVESIDLE",
+    "keepalives_interval": "PGKEEPALIVESINTERVAL",
+    "krbsrvname": "PGKRBSRVNAME",
+    "load_balance_hosts": "PGLOADBALANCEHOSTS",
+    "options": "PGOPTIONS",
+    "passfile": "PGPASSFILE",
+    "require_auth": "PGREQUIREAUTH",
+    "requiressl": "PGREQUIRESSL",
+    "service": "PGSERVICE",
+    "ssl_max_protocol_version": "PGSSLMAXPROTOCOLVERSION",
+    "ssl_min_protocol_version": "PGSSLMINPROTOCOLVERSION",
+    "sslcert": "PGSSLCERT",
+    "sslcompression": "PGSSLCOMPRESSION",
+    "sslcrl": "PGSSLCRL",
+    "sslcrldir": "PGSSLCRLDIR",
+    "sslkey": "PGSSLKEY",
+    "sslmode": "PGSSLMODE",
+    "sslnegotiation": "PGSSLNEGOTIATION",
+    "sslpassword": "PGSSLPASSWORD",
+    "sslrootcert": "PGSSLROOTCERT",
+    "sslsni": "PGSSLSNI",
+    "target_session_attrs": "PGTARGETSESSIONATTRS",
+    "tcp_user_timeout": "PGTCPUSERTIMEOUT",
+}
 
 
 @dataclass(frozen=True)
@@ -40,18 +73,18 @@ def pg_restore_command(dump_path: Path, database_url: str) -> tuple[list[str], d
         command.extend(["--username", parts.username])
     command.extend(["--dbname", database_name(database_url), str(dump_path)])
     env = os.environ.copy()
-    password = _password(parts.password, parts.query)
+    password = parts.password
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if key == "password":
+            password = value
+            continue
+        variable = _QUERY_ENV.get(key)
+        if variable is None:
+            raise ValueError("unsupported database url parameter")
+        env[variable] = value
     if password is not None:
         env["PGPASSWORD"] = password
     return command, env
-
-
-def _password(userinfo: str | None, query: str) -> str | None:
-    found = userinfo
-    for key, value in parse_qsl(query, keep_blank_values=True):
-        if key == "password":
-            found = value
-    return found
 
 
 def restore_dump(

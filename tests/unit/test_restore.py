@@ -72,6 +72,50 @@ def test_password_is_only_in_the_environment(monkeypatch: pytest.MonkeyPatch) ->
     assert query_env["PGPASSWORD"] == "secret"
 
 
+class SslOptions:
+    def assert_empty(self) -> None:
+        return None
+
+    def restore_url(self) -> str:
+        name = "pgrestoredrill_" + ("ab" * 16)
+        return f"postgresql://user:secret@localhost/{name}?sslmode=require"
+
+
+def test_sslmode_is_passed_as_an_environment_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        seen["command"] = command
+        seen["env"] = kwargs["env"]
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr("pgrestoredrill.runner.restore.subprocess.run", fake_run)
+    restore_dump(Path("backup.dump"), SslOptions(), 5)
+    command = seen["command"]
+    assert isinstance(command, list)
+    assert all("secret" not in str(part) for part in command)
+    assert all("sslmode" not in str(part) for part in command)
+    env = seen["env"]
+    assert isinstance(env, dict)
+    assert env["PGSSLMODE"] == "require"
+    assert env["PGPASSWORD"] == "secret"
+
+
+def test_unknown_query_parameter_is_rejected() -> None:
+    class Unknown:
+        def assert_empty(self) -> None:
+            return None
+
+        def restore_url(self) -> str:
+            name = "pgrestoredrill_" + ("ab" * 16)
+            return f"postgresql://user:secret@localhost/{name}?foo=1"
+
+    with pytest.raises(ValueError, match="unsupported database url parameter"):
+        restore_dump(Path("backup.dump"), Unknown(), 5)
+
+
 def test_restore_command_flags(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, object] = {}
 

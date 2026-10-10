@@ -12,6 +12,8 @@
 
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
   separate arguments. The password is passed only through `PGPASSWORD`.
+- URL options such as `sslmode` are passed to `pg_restore` as `PG*` environment
+  variables.
 
 ### Added
 
