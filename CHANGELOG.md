@@ -18,6 +18,9 @@
 
 ### Added
 
+- A dump is refused before restore when it is empty, smaller than optional
+  `min_bytes`, or older than optional `max_age_minutes`. The run is stored as
+  failed and the restore is skipped.
 - S3-compatible source. The newest object whose key ends in `.dump` is streamed
   to a temporary file, checksummed, restored, and the file is deleted afterwards.
   Credentials come from the environment or settings and are not logged.

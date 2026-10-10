@@ -28,6 +28,7 @@ from pgrestoredrill.db.urls import database_name
 from pgrestoredrill.errors import DumpNotFound, DumpSourceError, RestoreFailed, RestoreTimeout
 from pgrestoredrill.redact import redact
 from pgrestoredrill.runner.acquire import acquire_dump
+from pgrestoredrill.runner.preflight import dump_rejection
 from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.runner.restore import restore_dump
 from pgrestoredrill.runner.spec import DrillFile, load_drill, resolve_from_config
@@ -105,6 +106,14 @@ def _restore(
     assertions: list[AssertionSpec],
 ) -> CompletedRun:
     run = _start_run(session, drill.id, dump)
+    reason = dump_rejection(
+        dump,
+        min_bytes=spec.min_bytes,
+        max_age_minutes=spec.max_age_minutes,
+        now=datetime.now(UTC),
+    )
+    if reason is not None:
+        return _finish(session, run, spec.name, None, dump, STATUS_FAILED, None, reason, ())
     database: str | None = None
     try:
         restore_url = create_drill_database(settings.target_url)

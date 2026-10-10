@@ -24,6 +24,8 @@ class DrillFile(BaseModel):
     bucket: str | None = Field(default=None, min_length=1, max_length=255)
     endpoint_url: str | None = None
     region: str | None = Field(default=None, pattern=r"^[A-Za-z0-9-]+$", max_length=64)
+    min_bytes: int | None = Field(default=None, gt=0)
+    max_age_minutes: int | None = Field(default=None, gt=0)
 
     @field_validator("endpoint_url")
     @classmethod
