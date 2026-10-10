@@ -12,7 +12,9 @@ who run Postgres and have never tested a restore.
 You need Python 3.12, [uv](https://docs.astral.sh/uv/), GNU make, a Postgres 16
 or 17 server, and `pg_dump` / `pg_restore` on `PATH`. The role in `TARGET_URL`
 needs `CREATEDB`. `template1` must not contain user objects: tables, extensions
-other than `plpgsql`, schemas other than `public`, types, or functions.
+other than `plpgsql`, schemas other than `public`, types, functions, aggregates,
+operators, collations, large objects, text search configurations, publications,
+or foreign data wrappers.
 
 ```bash
 cp .env.example .env

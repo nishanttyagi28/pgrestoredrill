@@ -5,8 +5,9 @@
 ### Changed
 
 - A drill database is refused when it has an extension other than `plpgsql`, a
-  schema other than `public`, a user-defined type, or a function or procedure
-  outside the system catalogs.
+  schema other than `public`, a user-defined type, a function, procedure, or
+  aggregate outside the system catalogs, a large object, a collation, an
+  operator, a text search configuration, a publication, or a foreign data wrapper.
 
 ### Fixed
 

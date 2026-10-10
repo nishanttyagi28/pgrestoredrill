@@ -66,6 +66,39 @@ def test_extension_makes_target_non_empty(admin_url: str) -> None:
     _refuse_after(admin_url, _create_extension)
 
 
+def test_large_object_makes_target_non_empty(admin_url: str) -> None:
+    _refuse_after(admin_url, _sql("SELECT lo_create(0)"))
+
+
+def test_collation_makes_target_non_empty(admin_url: str) -> None:
+    _refuse_after(admin_url, _sql('CREATE COLLATION drill_coll FROM "C"'))
+
+
+def test_aggregate_makes_target_non_empty(admin_url: str) -> None:
+    statement = "CREATE AGGREGATE drill_sum(integer) (sfunc = int4pl, stype = integer)"
+    _refuse_after(admin_url, _sql(statement))
+
+
+def test_operator_makes_target_non_empty(admin_url: str) -> None:
+    statement = (
+        "CREATE OPERATOR public.~== (LEFTARG = integer, RIGHTARG = integer, FUNCTION = int4eq)"
+    )
+    _refuse_after(admin_url, _sql(statement))
+
+
+def test_text_search_config_makes_target_non_empty(admin_url: str) -> None:
+    statement = "CREATE TEXT SEARCH CONFIGURATION public.drill_ts (COPY = pg_catalog.simple)"
+    _refuse_after(admin_url, _sql(statement))
+
+
+def test_publication_makes_target_non_empty(admin_url: str) -> None:
+    _refuse_after(admin_url, _sql("CREATE PUBLICATION drill_pub FOR ALL TABLES"))
+
+
+def test_foreign_data_wrapper_makes_target_non_empty(admin_url: str) -> None:
+    _refuse_after(admin_url, _sql("CREATE FOREIGN DATA WRAPPER drill_fdw"))
+
+
 def test_extra_schema_makes_target_non_empty(admin_url: str) -> None:
     _refuse_after(admin_url, lambda conn: conn.execute("CREATE SCHEMA extra"))
 
@@ -77,6 +110,13 @@ def test_enum_type_makes_target_non_empty(admin_url: str) -> None:
 def test_function_makes_target_non_empty(admin_url: str) -> None:
     statement = "CREATE FUNCTION drill_marker() RETURNS integer LANGUAGE sql AS 'SELECT 1'"
     _refuse_after(admin_url, lambda conn: conn.execute(statement))
+
+
+def _sql(statement: str) -> Callable[[psycopg.Connection], object]:
+    def setup(conn: psycopg.Connection) -> object:
+        return conn.execute(statement)
+
+    return setup
 
 
 def _refuse_after(admin_url: str, setup: Callable[[psycopg.Connection], object]) -> None:
@@ -92,15 +132,23 @@ def _refuse_after(admin_url: str, setup: Callable[[psycopg.Connection], object])
 
 
 def _create_extension(conn: psycopg.Connection) -> None:
+    conn.execute(sql.SQL("CREATE EXTENSION {}").format(sql.Identifier("adminpack")))
     row = conn.execute(
         """
-        SELECT name
-        FROM pg_available_extensions
-        WHERE name <> 'plpgsql'
-        ORDER BY name
-        LIMIT 1
+        SELECT
+          (
+            SELECT count(*)
+            FROM pg_proc AS p
+            JOIN pg_namespace AS n ON n.oid = p.pronamespace
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+          ),
+          (
+            SELECT count(*)
+            FROM pg_type AS t
+            JOIN pg_namespace AS n ON n.oid = t.typnamespace
+            WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+          )
         """
     ).fetchone()
-    if row is None or not isinstance(row[0], str):
-        raise AssertionError("postgres has no extension besides plpgsql")
-    conn.execute(sql.SQL("CREATE EXTENSION {}").format(sql.Identifier(row[0])))
+    if row != (0, 0):
+        raise AssertionError("adminpack added functions or types")
