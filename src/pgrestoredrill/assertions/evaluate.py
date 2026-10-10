@@ -14,12 +14,12 @@ def judge(
     *,
     now: datetime | None = None,
 ) -> tuple[bool, str | None]:
-    rendered = format_observed(observed)
+    formatted = format_observed(observed)
     if spec.assertion_type == "rows_gte":
-        return _rows_gte(observed, spec.expected), rendered
+        return _rows_gte(observed, spec.expected), formatted
     if spec.assertion_type == "equals":
-        return _equals(observed, spec.expected), rendered
-    return _max_age(observed, spec.expected, now or datetime.now(UTC)), rendered
+        return _equals(observed, spec.expected), formatted
+    return _max_age(observed, spec.expected, now or datetime.now(UTC)), formatted
 
 
 def format_observed(value: object) -> str | None:
