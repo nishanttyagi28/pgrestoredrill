@@ -18,6 +18,9 @@
 
 ### Added
 
+- Run history API. `GET /healthz` and `GET /readyz` are open. Drill and run
+  routes require a bearer token compared in constant time with `ADMIN_TOKEN`.
+  The API reads runs the CLI records and does not start a restore.
 - A dump is refused before restore when it is empty, smaller than optional
   `min_bytes`, or older than optional `max_age_minutes`. The run is stored as
   failed and the restore is skipped.

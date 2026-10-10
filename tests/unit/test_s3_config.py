@@ -105,6 +105,7 @@ def test_s3_credentials_come_from_the_environment(
     settings = Settings()
     assert settings.s3_access_key == "test-key"
     assert settings.s3_secret_key == "test-secret"
+    assert "test-secret" not in repr(settings)
 
 
 def test_example_s3_drill_loads() -> None:

@@ -84,6 +84,19 @@ transaction.
 - `make run` prints CLI help
 - `make up` / `make down` start and stop the Postgres 16 service in `compose.yaml`
 
+The run-history API reads the same database. It does not start a restore.
+
+```bash
+uv run uvicorn pgrestoredrill.api.app:create_app --factory --host 127.0.0.1 --port 8000
+```
+
+`GET /healthz` and `GET /readyz` do not need a token. `/readyz` checks that the
+metadata database answers `SELECT 1`. `GET /drills`, `GET /drills/{id}/runs`,
+and `GET /runs/{id}` require `Authorization: Bearer` with the value of
+`ADMIN_TOKEN`. The token is compared in constant time. `/runs/{id}` includes
+the assertion results for that run. `runs` accepts `limit` from 1 to 100 and
+returns the newest runs first.
+
 `make test` needs the same Postgres server and client tools. It creates and
 drops its own databases. `make up` uses the example user, password, and port
 from `.env.example`. The server creates the `pgrestoredrill` and `postgres`
@@ -92,5 +105,6 @@ databases.
 ## Limits
 
 Postgres custom-format dumps from a local folder or an S3-compatible bucket
-are supported. `compose.yaml` can start a local Postgres 16 server. The
-run-history API, RPO alerts, a Docker restore target, and Kubernetes come later.
+are supported, and the API can list past runs. `compose.yaml` can start a
+local Postgres 16 server. RPO alerts, a Docker restore target, and Kubernetes
+come later.
