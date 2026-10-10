@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     database_url: str = ""
     target_url: str = ""
     log_level: str = "INFO"
+    # Empty values leave credential selection to the AWS default chain.
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
 
     @field_validator("database_url", "target_url")
     @classmethod

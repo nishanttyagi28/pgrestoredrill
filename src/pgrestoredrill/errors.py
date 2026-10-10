@@ -8,7 +8,11 @@ class DrillError(Exception):
 
 
 class DumpNotFound(DrillError):
-    """No custom-format dump was found in the source folder."""
+    """No custom-format dump was found."""
+
+
+class DumpSourceError(DrillError):
+    """The dump source could not be read."""
 
 
 class TargetNotDrillDatabase(DrillError):

@@ -1,11 +1,12 @@
 # pgrestoredrill
 
 pgrestoredrill proves a Postgres backup can be restored. It takes the newest
-custom-format dump (`pg_dump -Fc`) in a folder, restores it into a throwaway
-database, runs read-only SQL assertions, and records the run.
+custom-format dump (`pg_dump -Fc`) from a local folder or an S3-compatible
+bucket, restores it into a throwaway database, runs read-only SQL assertions,
+and records the run.
 
-This release is the local-file drill. It is for small teams and indie developers
-who run Postgres and have never tested a restore.
+This release is the local-file and S3 drill. It is for small teams and indie
+developers who run Postgres and have never tested a restore.
 
 ## Quickstart
 
@@ -46,6 +47,13 @@ restore target.
 file. Paths are relative to the drill file. The newest `*.dump` in that folder
 is the one that is restored.
 
+`examples/s3-drill.yaml` is the same drill for an S3-compatible bucket.
+`source_uri` is the key prefix, and `bucket`, `endpoint_url`, and `region`
+describe the bucket. The newest object whose key ends in `.dump` is streamed
+to a temporary file, restored, and then the file is deleted. Credentials are
+`S3_ACCESS_KEY` and `S3_SECRET_KEY`. When both are empty, boto3 uses its
+default environment chain. They are never written to the drill file or the logs.
+
 Assertions are a YAML list. Each item is one statement, run in its own
 `READ ONLY` transaction with `statement_timeout`.
 
@@ -77,6 +85,6 @@ databases.
 
 ## Limits
 
-Only Postgres custom-format dumps from a local folder are supported here.
-`compose.yaml` can start a local Postgres 16 server. S3 sources, the
+Postgres custom-format dumps from a local folder or an S3-compatible bucket
+are supported. `compose.yaml` can start a local Postgres 16 server. The
 run-history API, RPO alerts, a Docker restore target, and Kubernetes come later.

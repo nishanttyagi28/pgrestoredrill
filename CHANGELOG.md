@@ -18,6 +18,9 @@
 
 ### Added
 
+- S3-compatible source. The newest object whose key ends in `.dump` is streamed
+  to a temporary file, checksummed, restored, and the file is deleted afterwards.
+  Credentials come from the environment or settings and are not logged.
 - `compose.yaml` starts Postgres 16 with the example settings from `.env.example`.
 - Local custom-format restore drill. The newest `*.dump` in a folder is restored
   into an empty throwaway database, read-only assertions run, and the run is

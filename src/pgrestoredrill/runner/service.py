@@ -1,4 +1,4 @@
-"""Run one local drill and store its history."""
+"""Run one drill and store its history."""
 
 from __future__ import annotations
 
@@ -25,12 +25,13 @@ from pgrestoredrill.db.models import (
 )
 from pgrestoredrill.db.session import make_engine
 from pgrestoredrill.db.urls import database_name
-from pgrestoredrill.errors import DumpNotFound, RestoreFailed, RestoreTimeout
+from pgrestoredrill.errors import DumpNotFound, DumpSourceError, RestoreFailed, RestoreTimeout
 from pgrestoredrill.redact import redact
+from pgrestoredrill.runner.acquire import acquire_dump
 from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.runner.restore import restore_dump
 from pgrestoredrill.runner.spec import DrillFile, load_drill, resolve_from_config
-from pgrestoredrill.sources.local import LocalDump, newest_dump
+from pgrestoredrill.sources.local import LocalDump, release_dump
 from pgrestoredrill.targets.external import ExternalTarget, create_drill_database
 
 log = structlog.get_logger()
@@ -40,11 +41,10 @@ _ERROR_LIMIT = 2000
 def execute_drill(settings: Settings, config_path: Path) -> CompletedRun:
     spec = load_drill(config_path)
     assertions = load_assertions(resolve_from_config(config_path, spec.assertions_file))
-    source = resolve_from_config(config_path, spec.source_uri)
     engine = make_engine(settings.database_url)
     try:
         with Session(engine, expire_on_commit=False) as session:
-            return _execute(session, settings, spec, source, assertions)
+            return _execute(session, settings, spec, config_path, assertions)
     finally:
         engine.dispose()
 
@@ -53,7 +53,7 @@ def _execute(
     session: Session,
     settings: Settings,
     spec: DrillFile,
-    source: Path,
+    config_path: Path,
     assertions: list[AssertionSpec],
 ) -> CompletedRun:
     drill = _upsert_drill(session, spec, assertions)
@@ -70,11 +70,40 @@ def _execute(
             error="drill is disabled",
             assertions=(),
         )
+    dump: LocalDump | None = None
     try:
-        dump = newest_dump(source)
-    except DumpNotFound as exc:
-        run = _start_run(session, drill.id, None)
-        return _finish(session, run, spec.name, None, None, STATUS_ERROR, None, str(exc), ())
+        try:
+            dump = acquire_dump(settings, spec, config_path)
+        except DumpNotFound as exc:
+            run = _start_run(session, drill.id, None)
+            return _finish(session, run, spec.name, None, None, STATUS_ERROR, None, str(exc), ())
+        except DumpSourceError as exc:
+            run = _start_run(session, drill.id, None)
+            return _finish(
+                session,
+                run,
+                spec.name,
+                None,
+                None,
+                STATUS_ERROR,
+                None,
+                _stored_error(exc),
+                (),
+            )
+        return _restore(session, settings, spec, drill, dump, assertions)
+    finally:
+        if dump is not None:
+            release_dump(dump)
+
+
+def _restore(
+    session: Session,
+    settings: Settings,
+    spec: DrillFile,
+    drill: Drill,
+    dump: LocalDump,
+    assertions: list[AssertionSpec],
+) -> CompletedRun:
     run = _start_run(session, drill.id, dump)
     database: str | None = None
     try:
@@ -145,7 +174,7 @@ def _start_run(session: Session, drill_id: UUID, dump: LocalDump | None) -> Run:
         id=uuid4(),
         drill_id=drill_id,
         status=STATUS_RUNNING,
-        dump_key=None if dump is None else str(dump.path),
+        dump_key=None if dump is None else dump.key,
         dump_bytes=None if dump is None else dump.size,
         dump_sha256=None if dump is None else dump.sha256,
         restore_seconds=None,
@@ -214,7 +243,7 @@ def _result(
         drill_name=drill_name,
         run_id=run_id,
         database_name=database,
-        dump_path=None if dump is None else str(dump.path),
+        dump_path=None if dump is None else dump.key,
         dump_bytes=None if dump is None else dump.size,
         dump_sha256=None if dump is None else dump.sha256,
         restore_seconds=restore_seconds,

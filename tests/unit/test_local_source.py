@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from pgrestoredrill.errors import DumpNotFound
-from pgrestoredrill.sources.local import file_sha256, newest_dump
+from pgrestoredrill.sources.local import LocalDump, file_sha256, newest_dump, release_dump
 
 _ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
@@ -17,8 +18,12 @@ _ABC = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 def test_checksum_matches_file_bytes(tmp_path: Path) -> None:
     path = tmp_path / "backup.dump"
     path.write_bytes(b"abc")
+    _set_mtime(path, 1_700_000_000)
     found = newest_dump(tmp_path)
     assert found.path == path
+    assert found.key == str(path)
+    assert found.temporary is False
+    assert found.modified == datetime.fromtimestamp(1_700_000_000, tz=UTC)
     assert found.size == 3
     assert found.sha256 == file_sha256(path)
     assert found.sha256 == hashlib.sha256(b"abc").hexdigest()
@@ -58,6 +63,29 @@ def test_missing_dump_is_an_error(tmp_path: Path) -> None:
     missing = tmp_path / "missing"
     with pytest.raises(DumpNotFound, match="dump folder not found"):
         newest_dump(missing)
+
+
+def test_release_deletes_only_temporary_dumps(tmp_path: Path) -> None:
+    temporary = tmp_path / "temp.dump"
+    kept = tmp_path / "kept.dump"
+    temporary.write_bytes(b"abc")
+    kept.write_bytes(b"abc")
+    release_dump(_dump(temporary, temporary=True))
+    release_dump(_dump(kept, temporary=False))
+    release_dump(_dump(tmp_path / "gone.dump", temporary=True))
+    assert temporary.exists() is False
+    assert kept.exists() is True
+
+
+def _dump(path: Path, *, temporary: bool) -> LocalDump:
+    return LocalDump(
+        path=path,
+        size=3,
+        sha256="abc",
+        modified=datetime.now(UTC),
+        key=str(path),
+        temporary=temporary,
+    )
 
 
 def _set_mtime(path: Path, when: int) -> None:
