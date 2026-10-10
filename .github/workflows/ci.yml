@@ -25,10 +25,27 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      silo:
+        image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+        command: server /data
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "silo healthcheck ready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 5s
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       TARGET_URL: postgresql://postgres:postgres@localhost:5432/postgres
       LOG_LEVEL: INFO
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
