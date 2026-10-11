@@ -36,7 +36,14 @@ _FIXTURE_NAME = re.compile(r"^pgrestoredrill_fixture_[0-9a-f]{32}$")
 _ROOT = Path(__file__).resolve().parents[2]
 
 
+def require_dump_major(dump_major: int, server_major: int) -> None:
+    """Refuse a pg_dump newer than the server that will be restored."""
+    if dump_major > server_major:
+        raise RuntimeError(f"pg_dump {dump_major} is newer than the target server {server_major}")
+
+
 def build_dump(admin_url: str, output: Path) -> Path:
+    require_dump_major(_dump_major(), _server_major(admin_url))
     name = f"pgrestoredrill_fixture_{uuid4().hex}"
     if _FIXTURE_NAME.fullmatch(name) is None:
         raise RuntimeError("unexpected fixture database name")
@@ -79,6 +86,29 @@ def main() -> int:
     build_dump(url, output)
     print(f"wrote {output}")
     return 0
+
+
+def _server_major(admin_url: str) -> int:
+    with psycopg.connect(for_libpq(admin_url), autocommit=True) as conn:
+        row = conn.execute("SHOW server_version_num").fetchone()
+    if row is None or not isinstance(row[0], str) or not row[0].isdigit():
+        raise RuntimeError("could not read the target server version")
+    return int(row[0]) // 10000
+
+
+def _dump_major() -> int:
+    completed = subprocess.run(
+        ["pg_dump", "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError("pg_dump is required")
+    match = re.search(r"\(PostgreSQL\)\s+(\d+)", completed.stdout)
+    if match is None:
+        raise RuntimeError("could not read the pg_dump version")
+    return int(match.group(1))
 
 
 def _target_url() -> str:

@@ -11,11 +11,13 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, TypeGuard
+from typing import TYPE_CHECKING, Protocol, TypeGuard
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from mypy_boto3_s3.client import S3Client
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 from pgrestoredrill.errors import DumpNotFound, DumpSourceError
 from pgrestoredrill.sources.local import LocalDump

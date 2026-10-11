@@ -187,7 +187,7 @@ def _run(
     if block_temp:
         monkeypatch.setattr("pgrestoredrill.sources.s3.tempfile.mkstemp", fail_mkstemp)
     monkeypatch.setattr("pgrestoredrill.runner.acquire.open_s3_store", fake_open)
-    monkeypatch.setattr("pgrestoredrill.runner.service.create_drill_database", explode)
+    monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", explode)
     completed = execute_drill(settings, _config(tmp_path, name, min_bytes=min_bytes))
     assert completed.database_name is None
     return completed

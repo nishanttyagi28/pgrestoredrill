@@ -68,7 +68,7 @@ def test_s3_run_records_the_newest_object_and_deletes_the_temp_file(
         raise RestoreFailed(1, "stopped", 0.01)
 
     monkeypatch.setattr("pgrestoredrill.runner.acquire.open_s3_store", fake_open)
-    monkeypatch.setattr("pgrestoredrill.runner.service.create_drill_database", fake_create)
+    monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", fake_create)
     monkeypatch.setattr("pgrestoredrill.runner.service.restore_dump", fake_restore)
     completed = execute_drill(settings, _config(tmp_path))
     path = held["path"]
@@ -102,7 +102,7 @@ def test_s3_read_error_is_stored_without_restoring(
         raise AssertionError("should not create a database")
 
     monkeypatch.setattr("pgrestoredrill.runner.acquire.open_s3_store", fake_open)
-    monkeypatch.setattr("pgrestoredrill.runner.service.create_drill_database", explode)
+    monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", explode)
     completed = execute_drill(settings, _config(tmp_path))
     assert completed.status == "error"
     assert completed.error == "could not read the s3 dump"

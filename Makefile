@@ -32,5 +32,4 @@ down:
 	docker compose down
 
 kind-smoke:
-	@echo kind-smoke is part of a later milestone >&2
-	@exit 1
+	uv run python deploy/kind_smoke.py
