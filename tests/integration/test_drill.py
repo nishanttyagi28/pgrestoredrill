@@ -143,7 +143,7 @@ def test_disabled_drill_does_not_restore(
     def explode(url: str) -> str:
         raise AssertionError("should not create a database")
 
-    monkeypatch.setattr("pgrestoredrill.runner.service.create_drill_database", explode)
+    monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", explode)
     config = _config(tmp_path, "disabled", tmp_path / "missing.dump", _PASSING, enabled=False)
     completed = execute_drill(settings, config)
     assert completed.status == "error"
