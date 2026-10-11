@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- An interrupted S3 download deletes its temporary dump file, including when
+  the interruption is `KeyboardInterrupt`.
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
   separate arguments. The password is passed only through `PGPASSWORD`.
 - URL options such as `sslmode` are passed to `pg_restore` as `PG*` environment

@@ -131,7 +131,7 @@ def _stream(store: ObjectStore, bucket: str, obj: RemoteObject) -> LocalDump:
                 handle.write(chunk)
                 digest.update(chunk)
                 size += len(chunk)
-    except Exception:
+    except BaseException:
         with contextlib.suppress(OSError):
             path.unlink(missing_ok=True)
         raise

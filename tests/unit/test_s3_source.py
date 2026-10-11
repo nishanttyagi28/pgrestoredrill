@@ -95,6 +95,15 @@ class _ExplodingStore:
         raise RuntimeError("boom")
 
 
+class _InterruptStore:
+    def list_dumps(self, bucket: str, prefix: str) -> tuple[RemoteObject, ...]:
+        return (RemoteObject(key="backups/new.dump", modified=_NEWER),)
+
+    def open_dump(self, bucket: str, key: str) -> Iterator[bytes]:
+        yield b"partial"
+        raise KeyboardInterrupt
+
+
 def test_newest_dump_is_streamed_and_checksummed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -156,6 +165,30 @@ def test_interrupted_download_deletes_the_temp_file(
     with pytest.raises(RuntimeError, match="boom"):
         download_newest_dump(_ExplodingStore(), bucket="drills", prefix="backups/")
     assert list(tmp_path.iterdir()) == []
+
+
+def test_keyboard_interrupt_deletes_the_temp_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[Path] = []
+    real = tempfile.mkstemp
+
+    def wrapped(*args: object, **kwargs: object) -> tuple[int, str]:
+        kwargs["dir"] = tmp_path
+        descriptor, filename = real(*args, **kwargs)
+        created.append(Path(filename))
+        return descriptor, filename
+
+    monkeypatch.setattr("pgrestoredrill.sources.s3.tempfile.mkstemp", wrapped)
+    with pytest.raises(KeyboardInterrupt):
+        download_newest_dump(_InterruptStore(), bucket="drills", prefix="backups/")
+    assert created
+    assert all(
+        path.name.startswith("pgrestoredrill-") and path.suffix == ".dump" for path in created
+    )
+    assert all(path.exists() is False for path in created)
+    assert list(tmp_path.glob("pgrestoredrill-*.dump")) == []
 
 
 def test_client_error_hides_credentials() -> None:
