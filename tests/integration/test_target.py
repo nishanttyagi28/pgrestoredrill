@@ -132,7 +132,17 @@ def _refuse_after(admin_url: str, setup: Callable[[psycopg.Connection], object])
 
 
 def _create_extension(conn: psycopg.Connection) -> None:
-    conn.execute(sql.SQL("CREATE EXTENSION {}").format(sql.Identifier("adminpack")))
+    # file_fdw ships with Postgres 16 and 17. Members are detached and dropped
+    # so the pg_extension row is the only reason the target is refused.
+    conn.execute(sql.SQL("CREATE EXTENSION {}").format(sql.Identifier(_EXTENSION)))
+    members = _extension_members(conn)
+    if not members:
+        raise AssertionError("extension has no members")
+    for kind, identity in members:
+        conn.execute(_alter_member(kind, identity))
+    ordered = sorted(members, key=lambda item: _drop_rank(item[0]))
+    for kind, identity in ordered:
+        conn.execute(_drop_member(kind, identity))
     row = conn.execute(
         """
         SELECT
@@ -151,4 +161,99 @@ def _create_extension(conn: psycopg.Connection) -> None:
         """
     ).fetchone()
     if row != (0, 0):
-        raise AssertionError("adminpack added functions or types")
+        raise AssertionError("extension left functions or types behind")
+    still_there = conn.execute(
+        "SELECT 1 FROM pg_extension WHERE extname = %s",
+        (_EXTENSION,),
+    ).fetchone()
+    if still_there is None:
+        raise AssertionError("extension row is missing")
+
+
+def _extension_members(conn: psycopg.Connection) -> list[tuple[str, str]]:
+    rows = conn.execute(
+        """
+        SELECT kind, identity
+        FROM (
+          SELECT
+            (pg_identify_object(d.classid, d.objid, 0)).type AS kind,
+            (pg_identify_object(d.classid, d.objid, 0)).identity AS identity
+          FROM pg_depend AS d
+          WHERE d.refclassid = 'pg_extension'::regclass
+            AND d.refobjid = (SELECT oid FROM pg_extension WHERE extname = %s)
+            AND d.deptype = 'e'
+        ) AS members
+        """,
+        (_EXTENSION,),
+    ).fetchall()
+    return [(str(kind), str(identity)) for kind, identity in rows]
+
+
+def _alter_member(kind: str, identity: str) -> sql.Composed:
+    keyword, ident = _member_sql(kind, identity)
+    return sql.SQL("ALTER EXTENSION {} DROP {} {}").format(
+        sql.Identifier(_EXTENSION),
+        sql.SQL(keyword),
+        sql.SQL(ident),
+    )
+
+
+def _drop_member(kind: str, identity: str) -> sql.Composed:
+    keyword, ident = _member_sql(kind, identity)
+    return sql.SQL("DROP {} {}").format(sql.SQL(keyword), sql.SQL(ident))
+
+
+def _member_sql(kind: str, identity: str) -> tuple[str, str]:
+    keyword = _MEMBER_KIND.get(kind)
+    if keyword is None or not _safe_identity(identity):
+        raise AssertionError("unexpected extension member")
+    return keyword, identity
+
+
+def _safe_identity(identity: str) -> bool:
+    if not identity:
+        return False
+    allowed = set("._,[]() ")
+    return all(char.isalnum() or char in allowed for char in identity)
+
+
+def _drop_rank(kind: str) -> int:
+    try:
+        return _DROP_ORDER.index(kind)
+    except ValueError:
+        return len(_DROP_ORDER)
+
+
+_EXTENSION = "file_fdw"
+_MEMBER_KIND = {
+    "aggregate": "AGGREGATE",
+    "collation": "COLLATION",
+    "foreign-data wrapper": "FOREIGN DATA WRAPPER",
+    "function": "FUNCTION",
+    "operator": "OPERATOR",
+    "operator class": "OPERATOR CLASS",
+    "operator family": "OPERATOR FAMILY",
+    "procedure": "PROCEDURE",
+    "schema": "SCHEMA",
+    "sequence": "SEQUENCE",
+    "table": "TABLE",
+    "text search configuration": "TEXT SEARCH CONFIGURATION",
+    "type": "TYPE",
+    "view": "VIEW",
+}
+_DROP_ORDER = (
+    "foreign-data wrapper",
+    "operator",
+    "operator class",
+    "operator family",
+    "function",
+    "aggregate",
+    "procedure",
+    "type",
+    "table",
+    "view",
+    "sequence",
+    "collation",
+    "text search configuration",
+    "schema",
+)
