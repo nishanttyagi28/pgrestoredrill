@@ -79,7 +79,7 @@ def test_complete_reads_the_message_content() -> None:
 
 
 def test_a_response_over_64_kib_is_rejected() -> None:
-    body = b"x" * (64 * 1024 + 1)
+    body = json.dumps({"choices": [{"message": {"content": "a" * 70000}}]}).encode()
 
     class _Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:

@@ -68,7 +68,8 @@ class HttpNoteClient:
             raise NoteError from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise NoteError from None
-        if len(raw) > _MAX_RESPONSE or code < 200 or code >= 300:
+        # The capped read is limit + 1 bytes only when the body is longer than the cap.
+        if len(raw) == _MAX_RESPONSE + 1 or code < 200 or code >= 300:
             raise NoteError
         return _content(raw)
 
