@@ -33,7 +33,8 @@
 - S3-compatible source. The newest object whose key ends in `.dump` is streamed
   to a temporary file, checksummed, restored, and the file is deleted afterwards.
   Credentials come from the environment or settings and are not logged.
-- CI runs that S3 test against `pgsty/silo:RELEASE.2026-09-16T00-00-00Z`.
+- CI runs that S3 test against `pgsty/silo:RELEASE.2026-09-16T00-00-00Z`
+  pinned to `sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46`.
   The test skips when `MINIO_ENDPOINT` is unset and fails in GitHub Actions
   when the variable is missing.
 - `compose.yaml` starts Postgres 16 with the example settings from `.env.example`.

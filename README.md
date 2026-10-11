@@ -102,7 +102,8 @@ returns the newest runs first.
 `make test` needs the same Postgres server and client tools. It creates and
 drops its own databases. The live S3 test runs when `MINIO_ENDPOINT` is set
 and skips otherwise. CI sets that variable and starts
-`pgsty/silo:RELEASE.2026-09-16T00-00-00Z` with example root credentials.
+`pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46`
+with example root credentials.
 `make up` uses the example user, password, and port from `.env.example`. The
 server creates the `pgrestoredrill` and `postgres` databases.
 
