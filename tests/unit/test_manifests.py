@@ -38,3 +38,5 @@ def test_api_and_cronjob_are_locked_down() -> None:
     assert ":latest" not in base
     kustomization = (_MANIFESTS / "base" / "kustomization.yaml").read_text(encoding="utf-8")
     assert 'newTag: "0.0.1"' in kustomization
+    smoke = (_MANIFESTS / "overlays" / "smoke" / "kustomization.yaml").read_text(encoding="utf-8")
+    assert "namespace: pgrestoredrill" in smoke
