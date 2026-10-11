@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: pgrestoredrill
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - drill-configmap.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - migration-job.yaml
+  - cronjob.yaml
+images:
+  - name: ghcr.io/nishanttyagi28/pgrestoredrill
+    newTag: "0.0.1"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import unquote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
 
@@ -29,6 +29,18 @@ def database_name(url: str) -> str:
     if not name or "/" in name:
         raise ValueError("database url is missing a database name")
     return name
+
+
+def libpq_url(*, user: str, password: str, host: str, port: int, database: str) -> str:
+    if _IDENT.fullmatch(database) is None:
+        raise ValueError("invalid database name")
+    if user == "" or host == "" or any(char in host for char in " \t@/"):
+        raise ValueError("invalid host")
+    if port <= 0 or port > 65535:
+        raise ValueError("invalid host")
+    user_text = quote(user, safe="")
+    password_text = quote(password, safe="")
+    return f"postgresql://{user_text}:{password_text}@{host}:{port}/{database}"
 
 
 def swap_database(url: str, database: str) -> str:

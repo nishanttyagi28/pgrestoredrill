@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: silo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: silo
+  template:
+    metadata:
+      labels:
+        app: silo
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: silo
+          image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
+          imagePullPolicy: IfNotPresent
+          command: ["server", "/data"]
+          env:
+            - name: MINIO_ROOT_USER
+              value: minioadmin
+            - name: MINIO_ROOT_PASSWORD
+              value: minioadmin
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            exec:
+              command: ["silo", "healthcheck", "ready"]
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: silo
+spec:
+  selector:
+    app: silo
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000

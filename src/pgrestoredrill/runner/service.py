@@ -40,7 +40,8 @@ from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.runner.restore import restore_dump
 from pgrestoredrill.runner.spec import DrillFile, load_drill, resolve_from_config
 from pgrestoredrill.sources.local import LocalDump, release_dump
-from pgrestoredrill.targets.external import ExternalTarget, create_drill_database
+from pgrestoredrill.targets.external import ExternalTarget
+from pgrestoredrill.targets.opening import open_restore_url
 
 log = structlog.get_logger()
 _ERROR_LIMIT = 2000
@@ -132,30 +133,30 @@ def _restore(
         return _finish(session, run, spec.name, None, dump, STATUS_FAILED, None, reason, ())
     database: str | None = None
     try:
-        restore_url = create_drill_database(settings.target_url)
-        database = database_name(restore_url)
-        outcome = restore_dump(
-            dump.path,
-            ExternalTarget(restore_url),
-            spec.restore_timeout_seconds,
-        )
-        results = run_assertions(
-            restore_url,
-            assertions,
-            statement_timeout_ms=spec.statement_timeout_ms,
-        )
-        status = STATUS_PASSED if all(item.passed for item in results) else STATUS_FAILED
-        return _finish(
-            session,
-            run,
-            spec.name,
-            database,
-            dump,
-            status,
-            outcome.duration_seconds,
-            None,
-            tuple(results),
-        )
+        with open_restore_url(settings) as restore_url:
+            database = database_name(restore_url)
+            outcome = restore_dump(
+                dump.path,
+                ExternalTarget(restore_url),
+                spec.restore_timeout_seconds,
+            )
+            results = run_assertions(
+                restore_url,
+                assertions,
+                statement_timeout_ms=spec.statement_timeout_ms,
+            )
+            status = STATUS_PASSED if all(item.passed for item in results) else STATUS_FAILED
+            return _finish(
+                session,
+                run,
+                spec.name,
+                database,
+                dump,
+                status,
+                outcome.duration_seconds,
+                None,
+                tuple(results),
+            )
     except Exception as exc:
         seconds = exc.duration_seconds if isinstance(exc, (RestoreFailed, RestoreTimeout)) else None
         return _finish(

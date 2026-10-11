@@ -7,7 +7,13 @@ from pydantic import ValidationError
 
 from pgrestoredrill.config import Settings
 from pgrestoredrill.db.session import make_engine
-from pgrestoredrill.db.urls import database_name, for_libpq, for_sqlalchemy, swap_database
+from pgrestoredrill.db.urls import (
+    database_name,
+    for_libpq,
+    for_sqlalchemy,
+    libpq_url,
+    swap_database,
+)
 from pgrestoredrill.redact import redact
 
 
@@ -34,6 +40,25 @@ def test_swap_preserves_credentials_and_query() -> None:
     )
     assert swapped == f"postgresql://user:secret@localhost:5432/{name}?sslmode=disable"
     assert database_name(swapped) == name
+
+
+def test_libpq_url_quotes_the_password() -> None:
+    url = libpq_url(
+        user="postgres",
+        password="p@ss/word",
+        host="127.0.0.1",
+        port=5432,
+        database="postgres",
+    )
+    assert url == "postgresql://postgres:p%40ss%2Fword@127.0.0.1:5432/postgres"
+    with pytest.raises(ValueError, match="invalid host"):
+        libpq_url(
+            user="postgres",
+            password="secret",
+            host="bad host",
+            port=5432,
+            database="postgres",
+        )
 
 
 def test_swap_rejects_unsafe_names() -> None:

@@ -129,7 +129,8 @@ never finished a run is 0. The only labels are the drill name and, on
 - `make fixture` writes `tests/fixtures/dumps/sample.dump`
 - `make drill` runs the sample drill
 - `make run` prints CLI help
-- `make up` / `make down` start and stop the Postgres 16 service in `compose.yaml`
+- `make up` / `make down` start and stop the local compose stack
+- `make kind-smoke` builds the image, runs one drill on a kind cluster, and deletes the cluster
 
 The run-history API reads the same database. It does not start a restore.
 
@@ -165,10 +166,65 @@ and skips otherwise. CI sets that variable and starts
 `pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46`
 with example root credentials.
 `make up` uses the example user, password, and port from `.env.example`. The
-server creates the `pgrestoredrill` and `postgres` databases.
+metadata server creates the `pgrestoredrill` database.
+
+## Local compose
+
+`compose.yaml` starts a metadata Postgres, a throwaway target Postgres, silo
+as S3, a migration job, and the API. Example values are `postgres` / `postgres`
+for Postgres and `minioadmin` / `minioadmin` for silo. The API token is
+`replace-me`. Change it before you expose the API.
+
+```bash
+make up
+```
+
+The one-shot drill is a separate profile. Build a fresh fixture first, because
+the sample assertions expect rows from the last hour.
+
+```bash
+make fixture
+docker compose --profile drill run --rm drill
+```
+
+That command starts the migration, the target Postgres, silo, and the fixture
+upload, then runs the drill. It uploads `tests/fixtures/dumps/sample.dump` and
+runs `examples/compose-drill.yaml`. The drill restores into the `target`
+service. `TARGET_KIND=docker` is only for a drill on your machine: it starts a
+throwaway Postgres 16 container and removes it when the drill finishes, including
+when the drill fails. Do not set it in Kubernetes.
+
+The image installs `postgresql-client-17`. `pg_restore` 17 restores
+custom-format dumps written by `pg_dump` 16 or 17. The compose target and the
+sidecar are Postgres 16, so the dump has to come from Postgres 16 or older.
+Do not build the fixture with a `pg_dump` newer than 17.
+
+## Kubernetes
+
+The manifests under `deploy/k8s/base` are a kustomize app. They create a
+namespace, the API, a migration job, and a CronJob. The CronJob runs the drill
+beside a Postgres sidecar. An init container writes a random password into an
+emptyDir, and both containers read it. The sidecar listens on localhost and
+stops when the drill container exits. Nothing mounts the docker socket or a
+host path, and nothing is given cluster-wide permissions.
+
+```bash
+kubectl apply -k deploy/k8s/base
+```
+
+Replace every `replace-me` value in the Secret before you rely on it. The
+ConfigMap drill file points at `http://s3.example.invalid`; point it at your
+bucket. The image name is `ghcr.io/nishanttyagi28/pgrestoredrill`. Set `newTag`
+in `deploy/k8s/base/kustomization.yaml` to a released tag, or to a digest,
+before you apply the base. The repo sets that tag to `0.0.1`.
+
+`deploy/k8s/overlays/smoke` is only for `make kind-smoke`. It adds a metadata
+Postgres and silo, loads the sample fixture, runs the CronJob once, and checks
+the API for a passed run. It needs Docker, kind 0.33.0, and kubectl.
 
 ## Limits
 
 Postgres custom-format dumps from a local folder or an S3-compatible bucket
-are supported, and the API can list past runs. `compose.yaml` can start a
-local Postgres 16 server. A Docker restore target and Kubernetes come later.
+are supported. The API lists past runs. Compose can run the stack locally, and
+the Kubernetes CronJob can run a drill next to a Postgres sidecar. Failure
+notes are not in this release.
