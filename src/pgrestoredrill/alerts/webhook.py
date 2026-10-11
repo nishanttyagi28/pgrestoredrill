@@ -43,7 +43,7 @@ def deliver(url: str, payload: Mapping[str, str]) -> int | None:
         except (urllib.error.URLError, TimeoutError, OSError):
             last = None
             continue
-        if 200 <= last < 300:
+        if 200 <= last < 300 or 300 <= last < 400:
             return last
     return last
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import structlog
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,8 @@ from pgrestoredrill.runner.rpo import RPO_BREACHED, rpo_for_drill
 
 log = structlog.get_logger()
 _DEDUP_CONSTRAINT = "uq_alerts_dedup_key"
+_RESEND_AFTER = timedelta(minutes=10)
+_NO_STATUS = 0
 
 
 def notify_after_run(session: Session, settings: Settings, completed: CompletedRun) -> None:
@@ -25,7 +27,14 @@ def notify_after_run(session: Session, settings: Settings, completed: CompletedR
     if completed.run_id is None or url == "":
         return
     try:
-        _dispatch(session, url, completed.run_id, datetime.now(UTC))
+        now = datetime.now(UTC)
+        pending = list(
+            session.scalars(
+                select(Alert.id).where(Alert.sent_at.is_(None), Alert.response_status.is_(None))
+            ).all()
+        )
+        _dispatch(session, url, completed.run_id, now)
+        _resend_stuck(session, url, now, pending)
     except Exception:
         log.info("alert delivery failed")
 
@@ -48,7 +57,6 @@ def _dispatch(session: Session, url: str, run_id: UUID, now: datetime) -> None:
             status=run.status,
             reason=run.error or "run failed",
             now=now,
-            suggestion=_suggestion(run),
         )
     status, passed_id = rpo_for_drill(session, drill, now)
     if status != RPO_BREACHED:
@@ -64,7 +72,6 @@ def _dispatch(session: Session, url: str, run_id: UUID, now: datetime) -> None:
         status=RPO_BREACHED,
         reason="drill is outside its rpo",
         now=now,
-        suggestion=_suggestion(run),
     )
 
 
@@ -79,7 +86,6 @@ def _once(
     status: str,
     reason: str,
     now: datetime,
-    suggestion: dict[str, str],
 ) -> None:
     row = Alert(
         drill_id=drill_id,
@@ -98,9 +104,10 @@ def _once(
         if _duplicate_dedup(exc):
             return
         raise
-    payload = {"drill": drill_name, "status": status, "reason": reason, "run_id": str(run_id)}
-    payload.update(suggestion)
-    code = deliver(url, payload)
+    run = session.get(Run, run_id)
+    if run is None:
+        return
+    code = deliver(url, _payload(drill_name, status, reason, run_id, run))
     _save_delivery(session, row.id, code, now)
 
 
@@ -114,6 +121,37 @@ def _save_delivery(session: Session, alert_id: int, code: int | None, now: datet
     session.commit()
 
 
+def _resend_stuck(session: Session, url: str, now: datetime, pending: list[int]) -> None:
+    cutoff = now - _RESEND_AFTER
+    for alert_id in pending:
+        alert = session.get(Alert, alert_id)
+        if alert is None or alert.sent_at is not None or alert.response_status is not None:
+            continue
+        run = session.get(Run, alert.run_id)
+        drill = None if run is None else session.get(Drill, alert.drill_id)
+        if run is None or drill is None:
+            continue
+        stamp = run.finished_at or run.started_at
+        if _aware(stamp) >= cutoff:
+            continue
+        code = deliver(url, _payload(drill.name, alert.status, alert.reason, alert.run_id, run))
+        if code is None:
+            code = _NO_STATUS
+        _save_delivery(session, alert.id, code, now)
+
+
+def _payload(
+    drill_name: str,
+    status: str,
+    reason: str,
+    run_id: UUID,
+    run: Run,
+) -> dict[str, str]:
+    payload = {"drill": drill_name, "status": status, "reason": reason, "run_id": str(run_id)}
+    payload.update(_suggestion(run))
+    return payload
+
+
 def _suggestion(run: Run) -> dict[str, str]:
     if not run.failure_category or not run.failure_reason or not run.failure_step:
         return {}
@@ -123,6 +161,12 @@ def _suggestion(run: Run) -> dict[str, str]:
         "suggestion_reason": run.failure_reason,
         "suggestion_step": run.failure_step,
     }
+
+
+def _aware(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _duplicate_dedup(exc: IntegrityError) -> bool:

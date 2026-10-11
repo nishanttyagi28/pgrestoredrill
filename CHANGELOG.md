@@ -21,7 +21,12 @@
 ### Fixed
 
 - Acking a run is one conditional update. A concurrent second ack is rejected.
-- The alert webhook does not follow redirects. A 3xx response is a failed attempt.
+- The alert webhook does not follow redirects. A 3xx response is a final
+  failure and is not retried.
+- An alert with an empty `sent_at` and an empty `response_status` is sent
+  again on a later run when the alert's run finished more than 10 minutes
+  ago. The resend happens once. A resend that gets no HTTP status is marked
+  so it is not selected again. `sent_at` stays empty unless the response is 2xx.
 - An interrupted S3 download deletes its temporary dump file, including when
   the interruption is `KeyboardInterrupt`.
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
