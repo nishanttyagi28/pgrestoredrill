@@ -50,6 +50,27 @@ def test_settings_normalize_log_level() -> None:
     assert settings.log_level == "DEBUG"
 
 
+def test_alert_webhook_is_optional_and_hides_its_value() -> None:
+    blank = Settings(
+        database_url="postgresql://localhost/pgrestoredrill",
+        target_url="postgresql://localhost/postgres",
+        log_level="INFO",
+        alert_webhook_url="  ",
+    )
+    assert blank.alert_webhook_url == ""
+    hooked = blank.model_copy(update={"alert_webhook_url": "https://alerts.example/hook"})
+    assert "alerts.example" not in repr(hooked)
+    with pytest.raises(ValidationError) as caught:
+        Settings(
+            database_url="postgresql://localhost/pgrestoredrill",
+            target_url="postgresql://localhost/postgres",
+            log_level="INFO",
+            alert_webhook_url="http://user:secret@alerts.example/hook",
+        )
+    assert caught.value.errors()[0]["msg"] == "Value error, invalid alert webhook"
+    assert "secret" not in caught.value.errors()[0]["msg"]
+
+
 def test_settings_reject_bad_values() -> None:
     with pytest.raises(ValidationError):
         Settings(

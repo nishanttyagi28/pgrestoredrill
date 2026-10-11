@@ -24,6 +24,10 @@
 
 ### Added
 
+- A failed or errored run sends one JSON alert to `ALERT_WEBHOOK_URL` when it
+  is set. A drill that is outside its RPO sends one more. Delivery is tried at
+  most three times. The same failure is not sent again, and a delivery failure
+  does not change the run.
 - Run history API. `GET /healthz` and `GET /readyz` are open. Drill and run
   routes require a bearer token compared in constant time with `ADMIN_TOKEN`.
   The API reads runs the CLI records and does not start a restore.

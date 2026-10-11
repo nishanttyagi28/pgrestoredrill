@@ -86,6 +86,7 @@ def drill_url(admin_url: str) -> Iterator[str]:
 
 
 def _delete_history(conn: Connection) -> None:
+    conn.execute(text("DELETE FROM alerts"))
     conn.execute(text("DELETE FROM assertion_results"))
     conn.execute(text("DELETE FROM runs"))
     conn.execute(text("DELETE FROM drills"))

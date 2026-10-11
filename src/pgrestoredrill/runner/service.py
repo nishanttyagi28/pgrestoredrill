@@ -10,6 +10,7 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pgrestoredrill.alerts.notify import notify_after_run
 from pgrestoredrill.assertions.loader import load_assertions
 from pgrestoredrill.assertions.models import AssertionOutcome, AssertionSpec
 from pgrestoredrill.assertions.runner import run_assertions
@@ -51,7 +52,9 @@ def execute_drill(settings: Settings, config_path: Path) -> CompletedRun:
     engine = make_engine(settings.database_url)
     try:
         with Session(engine, expire_on_commit=False) as session:
-            return _execute(session, settings, spec, config_path, assertions)
+            completed = _execute(session, settings, spec, config_path, assertions)
+            notify_after_run(session, settings, completed)
+            return completed
     finally:
         engine.dispose()
 

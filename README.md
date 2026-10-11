@@ -74,6 +74,33 @@ Assertions are a YAML list. Each item is one statement, run in its own
 The statement must return one row. Writes are rejected by the read-only
 transaction.
 
+## RPO
+
+`rpo_minutes` in the drill file is the recovery point objective. The status is
+computed from finished runs each time it is read:
+
+- `unknown` when the drill has never finished a run
+- `ok` when the newest passed run finished within `rpo_minutes`
+- `breached` when that pass is older than `rpo_minutes`, or when every finished
+  run failed or errored
+
+A pass that is exactly `rpo_minutes` old is still `ok`. The status is not stored.
+
+## Alerts
+
+`ALERT_WEBHOOK_URL` is optional. When it is empty, nothing is sent. When it is
+set, a failed or errored run sends one JSON POST:
+
+```json
+{"drill": "orders", "status": "failed", "reason": "dump is empty", "run_id": "..."}
+```
+
+A drill that is `breached` sends one more post with `"status": "breached"`.
+The body has only those four fields. The same failure is not sent again. The
+request times out after 5 seconds and is tried at most 3 times, with a short
+pause between tries. The attempt is stored with the time and the response
+status. A delivery failure does not change the run result.
+
 ## Commands
 
 - `make install` installs the package and dev tools with uv
@@ -111,5 +138,4 @@ server creates the `pgrestoredrill` and `postgres` databases.
 
 Postgres custom-format dumps from a local folder or an S3-compatible bucket
 are supported, and the API can list past runs. `compose.yaml` can start a
-local Postgres 16 server. RPO alerts, a Docker restore target, and Kubernetes
-come later.
+local Postgres 16 server. A Docker restore target and Kubernetes come later.
