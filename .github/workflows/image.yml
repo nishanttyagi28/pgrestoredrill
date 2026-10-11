@@ -12,9 +12,21 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: install client
+        run: sudo apt-get update && sudo apt-get install -y make postgresql-client
+      - name: install dependencies
+        run: uv sync --frozen
       - name: build
-        run: docker build -t pgrestoredrill:ci .
+        run: docker build -t pgrestoredrill:ci -t pgrestoredrill:local .
+      - name: imports
+        run: |
+          docker run --rm pgrestoredrill:ci pgrestoredrill --help
+          docker run --rm pgrestoredrill:ci python -c "import pgrestoredrill.cli, pgrestoredrill.api.app, pgrestoredrill.runner.service"
       - name: health
         run: |
           docker run -d --name pgrestoredrill-health \
@@ -33,6 +45,14 @@ jobs:
           docker logs pgrestoredrill-health
           docker rm -f pgrestoredrill-health
           exit 1
+      - name: compose drill
+        run: |
+          set -eu
+          docker compose up -d target --wait
+          TARGET_URL=postgresql://postgres:postgres@127.0.0.1:5433/postgres \
+            uv run python tests/fixtures/build_fixture.py
+          docker compose --profile drill run --rm drill
+          docker compose --profile drill down -v
       - name: install kind
         run: |
           curl -fsSL -o /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
@@ -55,7 +75,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: push
