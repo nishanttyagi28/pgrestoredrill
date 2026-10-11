@@ -32,7 +32,7 @@ from pgrestoredrill.errors import (
     DrillNotFound,
     RunNotFound,
 )
-from pgrestoredrill.metrics import CONTENT_TYPE_LATEST, render_metrics
+from pgrestoredrill.metrics import CONTENT_TYPE_LATEST, build_metrics
 from pgrestoredrill.runner.ack import ack_run, drill_view
 from pgrestoredrill.runner.rpo import clock
 
@@ -48,7 +48,7 @@ def healthz() -> Health:
 @router.get("/metrics")
 def metrics(request: Request) -> Response:
     with _session(request) as session:
-        body = render_metrics(session, clock())
+        body = build_metrics(session, clock())
     return Response(content=body, media_type=CONTENT_TYPE_LATEST)
 
 

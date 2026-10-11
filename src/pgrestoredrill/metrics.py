@@ -19,16 +19,42 @@ from sqlalchemy.orm import Session
 from pgrestoredrill.db.models import STATUS_PASSED, Drill, Run
 from pgrestoredrill.runner.rpo import RPO_BREACHED, rpo_status
 
-__all__ = ["CONTENT_TYPE_LATEST", "render_metrics"]
+__all__ = ["CONTENT_TYPE_LATEST", "build_metrics"]
+
+# Default client buckets, extended through one hour. +Inf is added by the client.
+_DURATION_BUCKETS = (
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    2.5,
+    5.0,
+    7.5,
+    10.0,
+    30.0,
+    60.0,
+    120.0,
+    300.0,
+    600.0,
+    1800.0,
+    3600.0,
+)
 
 
-def render_metrics(session: Session, now: datetime) -> bytes:
+def build_metrics(session: Session, now: datetime) -> bytes:
     registry = CollectorRegistry()
     duration = Histogram(
         "pgrestoredrill_restore_duration_seconds",
         "Seconds spent restoring a dump.",
         labelnames=("drill",),
         registry=registry,
+        buckets=_DURATION_BUCKETS,
     )
     totals = Counter(
         "pgrestoredrill_runs_total",

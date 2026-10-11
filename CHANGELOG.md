@@ -4,6 +4,9 @@
 
 ### Changed
 
+- The restore duration histogram includes buckets up to 3600 seconds.
+  `GET /metrics` is unauthenticated. `pgrestoredrill_rpo_breached` is how to
+  catch a drill that has stopped running.
 - An alert row is inserted before the webhook is called. A duplicate dedup key
   is not sent again. `sent_at` stays empty unless a response is 2xx.
 - S3 size and age checks run on the listed object (`Size` and `LastModified`)

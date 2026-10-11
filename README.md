@@ -104,19 +104,20 @@ response is 2xx. A delivery failure does not change the run result.
 
 ## Metrics
 
-`GET /metrics` does not need a token. Each scrape reads stored runs and writes
+`GET /metrics` is unauthenticated. Each scrape reads stored runs and writes
 Prometheus text. Nothing is kept in memory between scrapes.
 
 | metric | meaning |
 | --- | --- |
-| `pgrestoredrill_restore_duration_seconds` | histogram of restore durations |
+| `pgrestoredrill_restore_duration_seconds` | histogram of restore durations, buckets up to 3600 seconds |
 | `pgrestoredrill_runs_total` | runs, labeled by drill and status |
 | `pgrestoredrill_last_success_timestamp_seconds` | unix time of the newest passed run |
 | `pgrestoredrill_rpo_breached` | 1 when the drill is breached, otherwise 0 |
 
-A drill that has never finished a run is 0. The only labels are
-the drill name and, on `runs_total`, the status. Dump keys, URLs, and secrets
-are not labels.
+Watch `pgrestoredrill_rpo_breached` to catch a drill that stopped running. It
+becomes 1 when the newest passed run ages past `rpo_minutes`. A drill that has
+never finished a run is 0. The only labels are the drill name and, on
+`runs_total`, the status. Dump keys, URLs, and secrets are not labels.
 
 ## Commands
 
@@ -136,8 +137,9 @@ The run-history API reads the same database. It does not start a restore.
 uv run uvicorn pgrestoredrill.api.app:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-`GET /healthz`, `GET /readyz`, and `GET /metrics` do not need a token. `/readyz`
-checks that the metadata database answers `SELECT 1`. `GET /drills`,
+`GET /healthz` and `GET /readyz` do not need a token. `GET /metrics` is
+unauthenticated. `/readyz` checks that the metadata database answers `SELECT 1`.
+`GET /drills`,
 `GET /drills/{id}`, `GET /drills/{id}/runs`, `GET /runs/{id}`, and
 `POST /runs/{id}/ack` require `Authorization: Bearer` with the value of
 `ADMIN_TOKEN`. The token is compared

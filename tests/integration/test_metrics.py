@@ -68,6 +68,7 @@ def test_metrics_follow_pass_fail_and_rpo(
     assert first.status_code == 200
     assert first.headers["content-type"] == CONTENT_TYPE_LATEST
     text = first.text
+    assert 'le="3600.0"' in text
     assert _SECRET_URI not in text
     assert _SECRET_KEY not in text
     assert _SECRET_ERROR not in text
