@@ -6,20 +6,35 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pgrestoredrill.api.auth import require_admin
 from pgrestoredrill.api.schemas import (
+    AckIn,
+    AckOut,
     AssertionResultOut,
     DrillOut,
+    DrillStatusOut,
     Health,
+    OpenFailureOut,
     RunDetail,
     RunOut,
 )
 from pgrestoredrill.api.state import get_state
 from pgrestoredrill.db.models import AssertionResult, Drill, Run
 from pgrestoredrill.db.session import connect
+from pgrestoredrill.errors import (
+    AckInvalid,
+    AckNotAllowed,
+    AlreadyAcked,
+    DrillNotFound,
+    RunNotFound,
+)
+from pgrestoredrill.metrics import CONTENT_TYPE_LATEST, build_metrics
+from pgrestoredrill.runner.ack import ack_run, drill_view
+from pgrestoredrill.runner.rpo import clock
 
 router = APIRouter()
 _AUTH = [Depends(require_admin)]
@@ -28,6 +43,13 @@ _AUTH = [Depends(require_admin)]
 @router.get("/healthz", response_model=Health)
 def healthz() -> Health:
     return Health(status="ok")
+
+
+@router.get("/metrics")
+def metrics(request: Request) -> Response:
+    with _session(request) as session:
+        body = build_metrics(session, clock())
+    return Response(content=body, media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get("/readyz", response_model=Health)
@@ -48,6 +70,30 @@ def list_drills(request: Request) -> list[DrillOut]:
     with _session(request) as session:
         rows = session.scalars(select(Drill).order_by(Drill.name)).all()
         return [DrillOut.model_validate(row) for row in rows]
+
+
+@router.get("/drills/{drill_id}", response_model=DrillStatusOut, dependencies=_AUTH)
+def get_drill(drill_id: UUID, request: Request) -> DrillStatusOut:
+    with _session(request) as session:
+        try:
+            view = drill_view(session, drill_id, clock())
+        except DrillNotFound:
+            raise HTTPException(status_code=404, detail="drill not found") from None
+        return DrillStatusOut(
+            id=view.id,
+            name=view.name,
+            rpo_minutes=view.rpo_minutes,
+            rpo_status=view.rpo_status,
+            open_failures=[
+                OpenFailureOut(
+                    id=item.id,
+                    status=item.status,
+                    finished_at=item.finished_at,
+                    error=item.error,
+                )
+                for item in view.open_failures
+            ],
+        )
 
 
 @router.get("/drills/{drill_id}/runs", response_model=list[RunOut], dependencies=_AUTH)
@@ -91,7 +137,29 @@ def get_run(run_id: UUID, request: Request) -> RunDetail:
             started_at=base.started_at,
             finished_at=base.finished_at,
             error=base.error,
+            acked_by=base.acked_by,
+            acked_at=base.acked_at,
+            note=base.note,
             assertions=[AssertionResultOut.model_validate(item) for item in results],
+        )
+
+
+@router.post("/runs/{run_id}/ack", response_model=AckOut, dependencies=_AUTH)
+def ack(run_id: UUID, body: AckIn, request: Request) -> AckOut:
+    with _session(request) as session:
+        try:
+            record = ack_run(session, run_id, by=body.by, note=body.note, now=clock())
+        except RunNotFound:
+            raise HTTPException(status_code=404, detail="run not found") from None
+        except AlreadyAcked:
+            raise HTTPException(status_code=409, detail="run is already acked") from None
+        except (AckNotAllowed, AckInvalid) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+        return AckOut(
+            id=record.run_id,
+            acked_by=record.by,
+            acked_at=record.acked_at,
+            note=record.note,
         )
 
 

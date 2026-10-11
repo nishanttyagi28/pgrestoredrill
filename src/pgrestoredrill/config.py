@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     s3_secret_key: str = Field(default="", repr=False)
     # Empty refuses every authenticated API request.
     admin_token: str = Field(default="", repr=False)
+    # Empty skips alerts. The URL is not logged.
+    alert_webhook_url: str = Field(default="", repr=False)
 
     @field_validator("database_url", "target_url")
     @classmethod
@@ -40,3 +43,16 @@ class Settings(BaseSettings):
         if normalized not in logging.getLevelNamesMapping():
             raise ValueError("invalid log level")
         return normalized
+
+    @field_validator("alert_webhook_url")
+    @classmethod
+    def _webhook(cls, value: str) -> str:
+        text = value.strip()
+        if text == "":
+            return ""
+        parts = urlsplit(text)
+        if parts.scheme not in {"http", "https"} or parts.hostname is None:
+            raise ValueError("invalid alert webhook")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError("invalid alert webhook")
+        return text

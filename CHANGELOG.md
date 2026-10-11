@@ -4,6 +4,11 @@
 
 ### Changed
 
+- The restore duration histogram includes buckets up to 3600 seconds.
+  `GET /metrics` is unauthenticated. `pgrestoredrill_rpo_breached` is how to
+  catch a drill that has stopped running.
+- An alert row is inserted before the webhook is called. A duplicate dedup key
+  is not sent again. `sent_at` stays empty unless a response is 2xx.
 - S3 size and age checks run on the listed object (`Size` and `LastModified`)
   before the download, and again on the streamed bytes. A listing that fails
   is stored as failed with the key and listed size, no checksum, and the
@@ -15,6 +20,8 @@
 
 ### Fixed
 
+- Acking a run is one conditional update. A concurrent second ack is rejected.
+- The alert webhook does not follow redirects. A 3xx response is a failed attempt.
 - An interrupted S3 download deletes its temporary dump file, including when
   the interruption is `KeyboardInterrupt`.
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
@@ -24,6 +31,15 @@
 
 ### Added
 
+- `GET /metrics` exposes restore duration, run counts, the time of the last
+  successful run, and whether the RPO is breached. Labels are drill names.
+- `GET /drills/{id}` reports the computed RPO status and open unacked failures.
+  `POST /runs/{id}/ack` and `pgrestoredrill ack` record who acked a failed or
+  errored run and a short note. A second ack is rejected. Nothing acks itself.
+- A failed or errored run sends one JSON alert to `ALERT_WEBHOOK_URL` when it
+  is set. A drill that is outside its RPO sends one more. Delivery is tried at
+  most three times. The same failure is not sent again, and a delivery failure
+  does not change the run.
 - Run history API. `GET /healthz` and `GET /readyz` are open. Drill and run
   routes require a bearer token compared in constant time with `ADMIN_TOKEN`.
   The API reads runs the CLI records and does not start a restore.

@@ -68,6 +68,9 @@ class Run(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    acked_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AssertionResult(Base):
@@ -86,3 +89,27 @@ class AssertionResult(Base):
     observed: Mapped[str | None] = mapped_column(Text, nullable=True)
     expected: Mapped[str] = mapped_column(Text, nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    __table_args__ = (UniqueConstraint("dedup_key", name="uq_alerts_dedup_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    drill_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("drills.id"),
+        nullable=False,
+        index=True,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("runs.id"),
+        nullable=False,
+        index=True,
+    )
+    dedup_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    response_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
