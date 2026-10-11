@@ -1,0 +1,141 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pgrestoredrill-drill
+spec:
+  schedule: "15 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: password
+              image: postgres:16
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  umask 077
+                  tr -dc 'a-f0-9' < /dev/urandom | head -c 32 > /password/password
+                  chmod 0444 /password/password
+              volumeMounts:
+                - name: password
+                  mountPath: /password
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+            - name: postgres
+              image: postgres:16
+              imagePullPolicy: IfNotPresent
+              restartPolicy: Always
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  export PGDATA=/var/lib/postgresql/data
+                  export LANG=C.UTF-8
+                  export POSTGRES_PASSWORD="$(cat /password/password)"
+                  if [ ! -s "$PGDATA/PG_VERSION" ]; then
+                    printf '%s\n' "$POSTGRES_PASSWORD" > /tmp/pwfile
+                    chmod 600 /tmp/pwfile
+                    initdb --username=postgres --pwfile=/tmp/pwfile --auth=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8 -D "$PGDATA"
+                    rm -f /tmp/pwfile
+                  fi
+                  exec postgres -D "$PGDATA" -c listen_addresses=127.0.0.1 -c unix_socket_directories=/tmp
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/postgresql/data
+                - name: password
+                  mountPath: /password
+                  readOnly: true
+                - name: sidecar-tmp
+                  mountPath: /tmp
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          containers:
+            - name: drill
+              image: ghcr.io/nishanttyagi28/pgrestoredrill:latest
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  export SIDECAR_PASSWORD="$(cat /password/password)"
+                  exec pgrestoredrill run --config /drill/drill.yaml
+              envFrom:
+                - configMapRef:
+                    name: pgrestoredrill
+                - secretRef:
+                    name: pgrestoredrill
+              volumeMounts:
+                - name: password
+                  mountPath: /password
+                  readOnly: true
+                - name: drill
+                  mountPath: /drill
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+                runAsGroup: 10001
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: password
+              emptyDir: {}
+            - name: data
+              emptyDir: {}
+            - name: sidecar-tmp
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+            - name: drill
+              configMap:
+                name: pgrestoredrill-drill

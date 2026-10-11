@@ -1,0 +1,12 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pgrestoredrill-drill
+spec:
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: drill
+              imagePullPolicy: Never

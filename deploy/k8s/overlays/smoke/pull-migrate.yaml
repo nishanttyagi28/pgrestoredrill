@@ -1,0 +1,10 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pgrestoredrill-migrate
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          imagePullPolicy: Never

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgrestoredrill
+data:
+  LOG_LEVEL: INFO
+  TARGET_KIND: k8s-sidecar
+  SIDECAR_HOST: 127.0.0.1
+  SIDECAR_PORT: "5432"
+  SIDECAR_USER: postgres

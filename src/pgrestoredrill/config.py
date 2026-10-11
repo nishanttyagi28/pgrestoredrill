@@ -55,8 +55,6 @@ class Settings(BaseSettings):
         if self.target_kind == "external":
             database_name(self.target_url)
         if self.target_kind == "k8s-sidecar":
-            if self.sidecar_password.strip() == "":
-                raise ValueError("sidecar password is required")
             if self.sidecar_user.strip() == "" or self.sidecar_host.strip() == "":
                 raise ValueError("invalid sidecar address")
             if self.sidecar_port <= 0 or self.sidecar_port > 65535:

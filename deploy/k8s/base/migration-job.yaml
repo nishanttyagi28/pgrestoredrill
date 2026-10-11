@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pgrestoredrill-migrate
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: ghcr.io/nishanttyagi28/pgrestoredrill:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              python -c 'import os, time, psycopg
+              url = os.environ["DATABASE_URL"]
+              for _ in range(60):
+                  try:
+                      with psycopg.connect(url, connect_timeout=3) as conn:
+                          conn.execute("SELECT 1")
+                      break
+                  except Exception:
+                      time.sleep(2)
+              else:
+                  raise SystemExit("metadata database is unavailable")
+              '
+              exec alembic upgrade head
+          envFrom:
+            - secretRef:
+                name: pgrestoredrill
+          env:
+            - name: LOG_LEVEL
+              value: INFO
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,76 @@
+name: image
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: build
+        run: docker build -t pgrestoredrill:ci .
+      - name: health
+        run: |
+          docker run -d --name pgrestoredrill-health \
+            -e DATABASE_URL=postgresql://postgres:unused@127.0.0.1:5432/postgres \
+            -e TARGET_URL=postgresql://postgres:unused@127.0.0.1:5432/postgres \
+            -e LOG_LEVEL=INFO \
+            -p 127.0.0.1:8000:8000 \
+            pgrestoredrill:ci
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz; then
+              docker rm -f pgrestoredrill-health
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs pgrestoredrill-health
+          docker rm -f pgrestoredrill-health
+          exit 1
+      - name: install kind
+        run: |
+          curl -fsSL -o /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+          curl -fsSL -o /tmp/kubectl https://dl.k8s.io/release/v1.37.1/bin/linux/amd64/kubectl
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          kind version
+          kubectl version --client
+      - name: kind smoke
+        env:
+          PGRESTOREDRILL_IMAGE: pgrestoredrill:ci
+        run: make kind-smoke
+
+  publish:
+    needs: verify
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: login
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: push
+        run: |
+          set -eu
+          image=ghcr.io/nishanttyagi28/pgrestoredrill
+          docker build -t "$image:${{ github.sha }}" .
+          docker push "$image:${{ github.sha }}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            docker tag "$image:${{ github.sha }}" "$image:latest"
+            docker push "$image:latest"
+          fi
+          case "${{ github.ref }}" in
+            refs/tags/*)
+              docker tag "$image:${{ github.sha }}" "$image:${GITHUB_REF_NAME}"
+              docker push "$image:${GITHUB_REF_NAME}"
+              ;;
+          esac

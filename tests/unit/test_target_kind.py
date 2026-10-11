@@ -31,7 +31,7 @@ def test_docker_target_does_not_require_a_url() -> None:
     assert settings.target_kind == "docker"
 
 
-def test_sidecar_password_is_required_and_hidden() -> None:
+def test_sidecar_password_is_hidden_and_optional_for_the_api() -> None:
     settings = Settings(
         database_url=_DATABASE,
         target_url="",
@@ -40,15 +40,14 @@ def test_sidecar_password_is_required_and_hidden() -> None:
         log_level="INFO",
     )
     assert "s3cret" not in repr(settings)
-    with pytest.raises(ValidationError) as caught:
-        Settings(
-            database_url=_DATABASE,
-            target_url="",
-            target_kind="k8s-sidecar",
-            sidecar_password="  ",
-            log_level="INFO",
-        )
-    assert caught.value.errors()[0]["msg"] == "Value error, sidecar password is required"
+    api = Settings(
+        database_url=_DATABASE,
+        target_url="",
+        target_kind="k8s-sidecar",
+        sidecar_password="",
+        log_level="INFO",
+    )
+    assert api.sidecar_password == ""
 
 
 def test_target_kind_must_be_known() -> None:

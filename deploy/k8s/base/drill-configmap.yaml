@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgrestoredrill-drill
+data:
+  drill.yaml: |
+    name: sample
+    source_kind: s3
+    source_uri: backups/
+    bucket: pgrestoredrill
+    endpoint_url: http://s3.example.invalid
+    region: us-east-1
+    rpo_minutes: 1440
+    assertions_file: assertions.yaml
+    enabled: true
+    restore_timeout_seconds: 120
+    statement_timeout_ms: 5000
+  assertions.yaml: |
+    - name: customers_present
+      type: rows_gte
+      sql: SELECT count(*) FROM customers
+      expected: 2
+    - name: first_email
+      type: equals
+      sql: SELECT email FROM customers WHERE id = 1
+      expected: a@example.com
+    - name: orders_are_fresh
+      type: max_age_minutes
+      sql: SELECT max(created_at) FROM orders
+      expected: 60
