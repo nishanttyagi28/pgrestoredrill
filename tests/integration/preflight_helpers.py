@@ -98,6 +98,17 @@ def assert_failed_history(engine: Engine, run_id: object) -> None:
     assert results == []
 
 
+def postgres_16_header() -> bytes:
+    out = bytearray(b"PGDMP")
+    out.extend(bytes((1, 15, 0, 4, 8, 1, 0)))
+    for _ in range(7):
+        out.extend(bytes((0, 1, 0, 0, 0)))
+    for text in (b"app", b"16.4", b"16.4"):
+        out.extend(bytes((0, len(text), 0, 0, 0)))
+        out.extend(text)
+    return bytes(out)
+
+
 def local_config(
     root: Path,
     name: str,

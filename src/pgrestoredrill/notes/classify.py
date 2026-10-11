@@ -83,6 +83,8 @@ def _version(text: str) -> bool:
         "unsupported version" in text
         or "transaction_timeout" in text
         or "dump is from postgres" in text
+        or "written by pg_dump" in text
+        or "dump archive is" in text
         or "server version mismatch" in text
     )
 

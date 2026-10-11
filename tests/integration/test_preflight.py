@@ -18,6 +18,7 @@ from tests.integration.preflight_helpers import (
     assert_failed_history,
     block_restore,
     local_config,
+    postgres_16_header,
 )
 
 
@@ -96,8 +97,9 @@ def test_fresh_dump_still_reaches_restore(
     folder = tmp_path / "dumps"
     folder.mkdir()
     dump = folder / "fresh.dump"
-    dump.write_bytes(b"abcd")
+    dump.write_bytes(postgres_16_header())
     os.utime(dump, None)
+    monkeypatch.setattr("pgrestoredrill.runner.header.pg_restore_major", lambda: 16)
     called: dict[str, bool] = {}
 
     def fake_create(url: str) -> str:

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 import subprocess
+from enum import Enum
 from pathlib import Path
+from typing import NamedTuple
 
 _MAGIC = b"PGDMP"
 _MAJOR = re.compile(r"(\d+)")
@@ -12,23 +14,57 @@ _VERSION = re.compile(r"(\d+)\.")
 _INT_SIZES = {2, 4, 8}
 _MAX_TEXT = 128
 _PREFIX = 4096
+_UNREADABLE = "dump header is unreadable"
+_ARCHIVE_NEEDS_17 = (1, 16, 0)
+
+
+class _DumpHeader(NamedTuple):
+    archive: tuple[int, int, int]
+    server_major: int
+    dump_major: int
+
+
+class _Kind(Enum):
+    BAD = 1
+    OLD = 2
 
 
 def version_refusal(path: Path) -> str | None:
-    dump_major = read_dump_major(path)
-    restore_major = pg_restore_major()
-    if dump_major is None or restore_major is None or dump_major <= restore_major:
+    try:
+        parsed = _load(path)
+    except OSError:
+        return _UNREADABLE
+    if parsed is _Kind.OLD:
         return None
-    return f"dump is from Postgres {dump_major}; this image restores {restore_major} or older"
+    if parsed is _Kind.BAD:
+        return _UNREADABLE
+    restore_major = pg_restore_major()
+    if restore_major is None:
+        return None
+    if parsed.server_major > restore_major:
+        return (
+            f"dump is from Postgres {parsed.server_major}; "
+            f"this image restores {restore_major} or older"
+        )
+    if parsed.dump_major > restore_major:
+        return (
+            f"dump was written by pg_dump {parsed.dump_major}; "
+            f"this image restores with pg_restore {restore_major}"
+        )
+    if parsed.archive >= _ARCHIVE_NEEDS_17 and restore_major < 17:
+        minor = parsed.archive[1]
+        return f"dump archive is 1.{minor}; this image needs pg_restore 17 or newer"
+    return None
 
 
 def read_dump_major(path: Path) -> int | None:
     try:
-        with path.open("rb") as handle:
-            data = handle.read(_PREFIX)
+        parsed = _load(path)
     except OSError:
         return None
-    return _major(data)
+    if isinstance(parsed, _DumpHeader):
+        return parsed.server_major
+    return None
 
 
 def pg_restore_major() -> int | None:
@@ -48,27 +84,40 @@ def pg_restore_major() -> int | None:
     return int(match.group(1))
 
 
-def _major(data: bytes) -> int | None:
+def _load(path: Path) -> _DumpHeader | _Kind:
+    with path.open("rb") as handle:
+        data = handle.read(_PREFIX)
+    return _parse(data)
+
+
+def _parse(data: bytes) -> _DumpHeader | _Kind:
     if len(data) < 9 or not data.startswith(_MAGIC):
-        return None
-    version = (data[5], data[6], data[7])
-    if version < (1, 10, 0):
-        return None
+        return _Kind.BAD
+    archive = (data[5], data[6], data[7])
+    if archive < (1, 10, 0):
+        return _Kind.OLD
     int_size = data[8]
     if int_size not in _INT_SIZES:
-        return None
+        return _Kind.BAD
     cursor = _Cursor(data, int_size)
-    if not _skip_fixed(cursor, version):
-        return None
+    if not _skip_fixed(cursor, archive):
+        return _Kind.BAD
     for _ in range(7):
         if cursor.integer() is None:
-            return None
+            return _Kind.BAD
     if cursor.text() is None:
+        return _Kind.BAD
+    server_major = _leading_major(cursor.text())
+    dump_major = _leading_major(cursor.text())
+    if server_major is None or dump_major is None:
+        return _Kind.BAD
+    return _DumpHeader(archive, server_major, dump_major)
+
+
+def _leading_major(value: str | None) -> int | None:
+    if value is None:
         return None
-    remote = cursor.text()
-    if remote is None:
-        return None
-    match = _MAJOR.match(remote)
+    match = _MAJOR.match(value)
     if match is None:
         return None
     return int(match.group(1))

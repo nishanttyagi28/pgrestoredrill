@@ -10,6 +10,8 @@
 - A note response larger than 64 KiB is discarded. The rule result is kept.
 - A stuck alert is claimed with one conditional update before the resend.
   Concurrent runs send that alert once.
+- A dump written by a newer `pg_dump`, an archive format of 1.16 or newer, or
+  an unreadable header is refused before restore.
 
 ## [0.1.0] - 2026-10-11
 
@@ -51,8 +53,10 @@
 
 - A custom-format dump newer than this `pg_restore` is refused before restore.
   The run is stored as failed. The error names both majors, for example
-  `dump is from Postgres 17; this image restores 16 or older`. A header that
-  cannot be read does not block the restore.
+  `dump is from Postgres 17; this image restores 16 or older`. A `pg_dump`
+  newer than this client is refused even when the server version is older.
+  Archive format 1.16 or newer needs `pg_restore` 17 or newer. An unreadable
+  or truncated header is refused.
 - Optional failure suggestions. `NOTES_ENABLED` defaults to false. Rules label
   the restore stderr and assertion results first. A model is called only when
   notes are enabled and the rule result is unknown, through an OpenAI-compatible

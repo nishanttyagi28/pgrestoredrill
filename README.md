@@ -80,7 +80,7 @@ Notes stay off until `NOTES_ENABLED` is true. Rules run first: missing extension
 
 ## Limitations
 
-Postgres custom-format dumps only. The image and the sidecar restore dumps from Postgres 16 or older for now. A newer dump is refused before restore. The error looks like `dump is from Postgres 17; this image restores 16 or older`, and the run is failed. Alert delivery is at-most-once with one resend.
+Postgres custom-format dumps only. The image and the sidecar restore dumps from Postgres 16 or older for now. A newer server, a newer `pg_dump`, archive format 1.16 or newer, or an unreadable header is refused before restore. One error looks like `dump is from Postgres 17; this image restores 16 or older`, and the run is failed. Alert delivery is at-most-once with one resend.
 
 ## Development
 

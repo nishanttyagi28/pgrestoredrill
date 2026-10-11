@@ -176,10 +176,11 @@ def test_corrupt_dump_is_an_error(
     (folder / "bad.dump").write_bytes(b"this is not a dump")
     completed = execute_drill(settings, _config(tmp_path, "corrupt", folder, _PASSING))
     try:
-        assert completed.status == "error"
-        assert completed.error is not None
-        assert "not found" not in completed.error
-        assert completed.database_name is not None
+        assert completed.status == STATUS_FAILED
+        assert completed.error == "dump header is unreadable"
+        assert completed.database_name is None
+        assert completed.restore_seconds is None
+        assert completed.run_id is not None
     finally:
         _drop(admin_url, completed)
 

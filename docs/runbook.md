@@ -18,9 +18,9 @@ Create that role on the restore server, or take the dump again with `--no-owner`
 
 ## Version mismatch
 
-The dump is newer than this `pg_restore`, or the restore client sent SQL this server rejects. A dump newer than the client is refused before restore. The error looks like `dump is from Postgres 17; this image restores 16 or older`. `pg_restore` 17 also sends `SET transaction_timeout`, which Postgres 16 rejects.
+The dump is newer than this `pg_restore`, or the restore client sent SQL this server rejects. A dump newer than the client is refused before restore. The error looks like `dump is from Postgres 17; this image restores 16 or older`. A dump written by a newer `pg_dump` is refused even when the server version is older: `dump was written by pg_dump 17; this image restores with pg_restore 16`. Archive format 1.16 or newer needs `pg_restore` 17 or newer. `pg_restore` 17 also sends `SET transaction_timeout`, which Postgres 16 rejects.
 
-Take the dump again with `pg_dump` 16 or older, or restore with a client at least as new as the dump. The image and the sidecar install `postgresql-client-16`. A header that cannot be read does not block the restore. The run is failed, and the category is version mismatch when notes are enabled.
+Take the dump again with `pg_dump` 16 or older, or restore with a client at least as new as the dump. The image and the sidecar install `postgresql-client-16`. The run is failed, and the category is version mismatch when notes are enabled.
 
 ## Permission denied
 
@@ -48,6 +48,6 @@ Compare that assertion with the restored database. An external target leaves the
 
 ## Unknown
 
-The error did not match a rule above. Read `error` on the run, and the restore stderr stored with it.
+The error did not match a rule above. Read `error` on the run, and the restore stderr stored with it. An unreadable or truncated dump header is refused before restore. The error is `dump header is unreadable`, and no database is created.
 
 When notes are enabled and the rule result is unknown, the service may attach a model suggestion. Keep it as a hint. Confirm it against the error text before you act on it. If the reply was not the required JSON, the stored category stays unknown and the fixed rule text is kept. Compare the dump with this server, fix the cause, and run the drill again.

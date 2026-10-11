@@ -16,7 +16,7 @@ from pgrestoredrill.db.models import STATUS_ERROR, Run
 from pgrestoredrill.db.urls import swap_database
 from pgrestoredrill.errors import RestoreFailed
 from pgrestoredrill.runner.service import execute_drill
-from tests.integration.preflight_helpers import local_config
+from tests.integration.preflight_helpers import local_config, postgres_16_header
 
 _HOOK = "https://alerts.example/hook"
 _TOKEN = "test-token"
@@ -185,7 +185,8 @@ def _drill(
 ) -> tuple[object, list[dict[str, str]]]:
     folder = tmp_path / "dumps"
     folder.mkdir()
-    (folder / "fresh.dump").write_bytes(b"abcd")
+    (folder / "fresh.dump").write_bytes(postgres_16_header())
+    monkeypatch.setattr("pgrestoredrill.runner.header.pg_restore_major", lambda: 16)
 
     def fake_create(url: str) -> str:
         return swap_database(url, "pgrestoredrill_" + "cd" * 16)
