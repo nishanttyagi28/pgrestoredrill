@@ -190,6 +190,9 @@ def _assert_run(engine: Engine, run_id: UUID | None, status: str, error: str) ->
     assert run is not None
     assert run.status == status
     assert run.error == error
+    assert run.acked_at is None
+    assert run.acked_by is None
+    assert run.note is None
 
 
 def _completed(run: Run) -> CompletedRun:

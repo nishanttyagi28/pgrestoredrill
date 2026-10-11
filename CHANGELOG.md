@@ -24,6 +24,9 @@
 
 ### Added
 
+- `GET /drills/{id}` reports the computed RPO status and open unacked failures.
+  `POST /runs/{id}/ack` and `pgrestoredrill ack` record who acked a failed or
+  errored run and a short note. A second ack is rejected. Nothing acks itself.
 - A failed or errored run sends one JSON alert to `ALERT_WEBHOOK_URL` when it
   is set. A drill that is outside its RPO sends one more. Delivery is tried at
   most three times. The same failure is not sent again, and a delivery failure

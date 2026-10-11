@@ -55,6 +55,41 @@ class RestoreFailed(DrillError):
         super().__init__(f"pg_restore exited {returncode}{detail}")
 
 
+class RunNotFound(DrillError):
+    """No run has this id."""
+
+    def __init__(self) -> None:
+        super().__init__("run not found")
+
+
+class DrillNotFound(DrillError):
+    """No drill has this id."""
+
+    def __init__(self) -> None:
+        super().__init__("drill not found")
+
+
+class AckNotAllowed(DrillError):
+    """Only a failed or errored run can be acked."""
+
+    def __init__(self) -> None:
+        super().__init__("only a failed or error run can be acked")
+
+
+class AlreadyAcked(DrillError):
+    """This run was already acked."""
+
+    def __init__(self) -> None:
+        super().__init__("run is already acked")
+
+
+class AckInvalid(DrillError):
+    """The ack name or note is empty or too long."""
+
+    def __init__(self) -> None:
+        super().__init__("ack needs a name and a short note")
+
+
 class RestoreTimeout(DrillError):
     """pg_restore did not finish before the timeout."""
 

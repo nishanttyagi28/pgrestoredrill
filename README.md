@@ -120,11 +120,23 @@ uv run uvicorn pgrestoredrill.api.app:create_app --factory --host 127.0.0.1 --po
 ```
 
 `GET /healthz` and `GET /readyz` do not need a token. `/readyz` checks that the
-metadata database answers `SELECT 1`. `GET /drills`, `GET /drills/{id}/runs`,
-and `GET /runs/{id}` require `Authorization: Bearer` with the value of
-`ADMIN_TOKEN`. The token is compared in constant time. `/runs/{id}` includes
-the assertion results for that run. `runs` accepts `limit` from 1 to 100 and
-returns the newest runs first.
+metadata database answers `SELECT 1`. `GET /drills`, `GET /drills/{id}`,
+`GET /drills/{id}/runs`, `GET /runs/{id}`, and `POST /runs/{id}/ack` require
+`Authorization: Bearer` with the value of `ADMIN_TOKEN`. The token is compared
+in constant time. `/runs/{id}` includes the assertion results for that run.
+`runs` accepts `limit` from 1 to 100 and returns the newest runs first.
+
+`GET /drills/{id}` returns the drill's RPO status and the failed or errored
+runs that have not been acked. Ack a run with:
+
+```bash
+pgrestoredrill ack RUN_ID --by "Ada" --note "checked the restored rows"
+```
+
+The JSON body is `{"by": "Ada", "note": "checked the restored rows"}`. Only a
+failed or errored run can be acked. A second ack returns 409. A passed run
+returns 400. No process acks a run on its own. An ack does not change the RPO
+status.
 
 `make test` needs the same Postgres server and client tools. It creates and
 drops its own databases. The live S3 test runs when `MINIO_ENDPOINT` is set

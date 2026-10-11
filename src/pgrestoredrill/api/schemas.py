@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Health(BaseModel):
@@ -36,6 +36,9 @@ class RunOut(BaseModel):
     started_at: datetime
     finished_at: datetime | None
     error: str | None
+    acked_by: str | None = None
+    acked_at: datetime | None = None
+    note: str | None = None
 
 
 class AssertionResultOut(BaseModel):
@@ -50,3 +53,38 @@ class AssertionResultOut(BaseModel):
 
 class RunDetail(RunOut):
     assertions: list[AssertionResultOut]
+
+
+class AckIn(BaseModel):
+    by: str = Field(min_length=1, max_length=200)
+    note: str = Field(min_length=1, max_length=500)
+
+    @field_validator("by", "note")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        text = value.strip()
+        if text == "":
+            raise ValueError("must not be blank")
+        return text
+
+
+class AckOut(BaseModel):
+    id: UUID
+    acked_by: str
+    acked_at: datetime
+    note: str
+
+
+class OpenFailureOut(BaseModel):
+    id: UUID
+    status: str
+    finished_at: datetime | None
+    error: str | None
+
+
+class DrillStatusOut(BaseModel):
+    id: UUID
+    name: str
+    rpo_minutes: int
+    rpo_status: str
+    open_failures: list[OpenFailureOut]

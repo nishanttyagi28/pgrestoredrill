@@ -15,6 +15,10 @@ RPO_BREACHED = "breached"
 RPO_UNKNOWN = "unknown"
 
 
+def clock() -> datetime:
+    return datetime.now(UTC)
+
+
 def rpo_status(
     *,
     rpo_minutes: int,
