@@ -7,10 +7,30 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
+from http.client import HTTPMessage
+from typing import IO
 
 _ATTEMPTS = 3
 _TIMEOUT_SECONDS = 5.0
 _BACKOFF_SECONDS = (0.5, 1.0)
+
+
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    """A 3xx response is a failed attempt. The Location is not requested."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        raise urllib.error.HTTPError(req.full_url, code, msg, headers, fp)
+
+
+_OPENER = urllib.request.build_opener(_RefuseRedirect())
 
 
 def deliver(url: str, payload: Mapping[str, str]) -> int | None:
@@ -37,7 +57,7 @@ def post_json(url: str, payload: Mapping[str, str], timeout: float) -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _OPENER.open(request, timeout=timeout) as response:
             return int(response.status)
     except urllib.error.HTTPError as exc:
         return int(exc.code)

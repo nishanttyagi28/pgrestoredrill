@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- The alert webhook does not follow redirects. A 3xx response is a failed attempt.
 - An interrupted S3 download deletes its temporary dump file, including when
   the interruption is `KeyboardInterrupt`.
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
