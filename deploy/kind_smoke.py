@@ -105,7 +105,12 @@ def assert_api() -> None:
         if not isinstance(drills, list) or not drills or not isinstance(drills[0], dict):
             raise RuntimeError("drill did not pass")
         drill_id = drills[0].get("id")
-        require_passed(get_json(f"/drills/{drill_id}/runs?limit=1"))
+        runs = get_json(f"/drills/{drill_id}/runs?limit=1")
+        require_passed(runs)
+        if not isinstance(runs, list) or not isinstance(runs[0], dict):
+            raise RuntimeError("drill did not pass")
+        print(f"run_id: {runs[0].get('id')}")
+        print(f"status: {runs[0].get('status')}")
 
 
 def get_json(path: str) -> object:

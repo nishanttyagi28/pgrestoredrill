@@ -4,6 +4,8 @@
 
 ### Changed
 
+- `make kind-smoke` prints the passed run id and status. CI pins the Postgres
+  16 service image by digest.
 - The restore duration histogram includes buckets up to 3600 seconds.
   `GET /metrics` is unauthenticated. `pgrestoredrill_rpo_breached` is how to
   catch a drill that has stopped running.
