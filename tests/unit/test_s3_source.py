@@ -88,7 +88,7 @@ class _MemoryStore:
 
 class _ExplodingStore:
     def list_dumps(self, bucket: str, prefix: str) -> tuple[RemoteObject, ...]:
-        return (RemoteObject(key="backups/new.dump", modified=_NEWER),)
+        return (RemoteObject(key="backups/new.dump", modified=_NEWER, size=7),)
 
     def open_dump(self, bucket: str, key: str) -> Iterator[bytes]:
         yield b"partial"
@@ -97,7 +97,7 @@ class _ExplodingStore:
 
 class _InterruptStore:
     def list_dumps(self, bucket: str, prefix: str) -> tuple[RemoteObject, ...]:
-        return (RemoteObject(key="backups/new.dump", modified=_NEWER),)
+        return (RemoteObject(key="backups/new.dump", modified=_NEWER, size=7),)
 
     def open_dump(self, bucket: str, key: str) -> Iterator[bytes]:
         yield b"partial"
@@ -111,11 +111,11 @@ def test_newest_dump_is_streamed_and_checksummed(
     pages = [
         {
             "Contents": [
-                {"Key": "backups/old.dump", "LastModified": _OLDER},
+                {"Key": "backups/old.dump", "LastModified": _OLDER, "Size": 3},
                 {"Key": "backups/notes.txt", "LastModified": datetime(2025, 1, 1, tzinfo=UTC)},
             ]
         },
-        {"Contents": [{"Key": "backups/new.dump", "LastModified": _NEWER}]},
+        {"Contents": [{"Key": "backups/new.dump", "LastModified": _NEWER, "Size": len(_PAYLOAD)}]},
     ]
     client = _Client(pages, {"backups/new.dump": _PAYLOAD, "backups/old.dump": b"old"})
     dump = download_newest_dump(BotoStore(client), bucket="drills", prefix="backups/")
@@ -137,8 +137,8 @@ def test_newest_dump_is_streamed_and_checksummed(
 def test_equal_timestamps_tie_break_on_the_key() -> None:
     store = _MemoryStore(
         (
-            RemoteObject(key="backups/a.dump", modified=datetime(2024, 6, 1)),
-            RemoteObject(key="backups/b.dump", modified=datetime(2024, 6, 1)),
+            RemoteObject(key="backups/a.dump", modified=datetime(2024, 6, 1), size=1),
+            RemoteObject(key="backups/b.dump", modified=datetime(2024, 6, 1), size=1),
         ),
         {"backups/a.dump": b"a", "backups/b.dump": b"b"},
     )
@@ -189,6 +189,23 @@ def test_keyboard_interrupt_deletes_the_temp_file(
     )
     assert all(path.exists() is False for path in created)
     assert list(tmp_path.glob("pgrestoredrill-*.dump")) == []
+
+
+def test_a_dump_listing_needs_a_non_negative_size() -> None:
+    for size in (None, -1, True, False, "12", 1.5):
+        pages = [{"Contents": [{"Key": "backups/new.dump", "LastModified": _NEWER, "Size": size}]}]
+        client = _Client(pages, {})
+        with pytest.raises(DumpSourceError, match="could not read the s3 dump"):
+            BotoStore(client).list_dumps("drills", "backups/")
+        assert client.keys == []
+
+
+def test_a_zero_byte_listing_is_not_a_read_error() -> None:
+    pages = [{"Contents": [{"Key": "backups/empty.dump", "LastModified": _NEWER, "Size": 0}]}]
+    client = _Client(pages, {})
+    found = BotoStore(client).list_dumps("drills", "backups/")
+    assert found == (RemoteObject(key="backups/empty.dump", modified=_NEWER, size=0),)
+    assert client.keys == []
 
 
 def test_client_error_hides_credentials() -> None:

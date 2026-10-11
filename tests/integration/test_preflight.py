@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import tempfile
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -120,13 +119,13 @@ def test_fresh_dump_still_reaches_restore(
     assert completed.error == "pg_restore exited 1: stopped"
 
 
-def test_empty_s3_object_is_refused_and_the_temp_file_is_removed(
+def test_empty_s3_listing_is_refused_without_a_download(
     settings: Settings,
     engine: Engine,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    path = _run_s3(
+    _refuse_s3_listing(
         settings,
         engine,
         tmp_path,
@@ -134,18 +133,19 @@ def test_empty_s3_object_is_refused_and_the_temp_file_is_removed(
         name="empty-s3",
         key="backups/empty.dump",
         modified=datetime.now(UTC),
-        payload=b"",
+        size=0,
+        min_bytes=100,
+        reason="dump is empty",
     )
-    assert path.exists() is False
 
 
-def test_stale_s3_object_is_refused_and_the_temp_file_is_removed(
+def test_stale_s3_listing_is_refused_without_a_download(
     settings: Settings,
     engine: Engine,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    path = _run_s3(
+    _refuse_s3_listing(
         settings,
         engine,
         tmp_path,
@@ -153,14 +153,13 @@ def test_stale_s3_object_is_refused_and_the_temp_file_is_removed(
         name="stale-s3",
         key="backups/old.dump",
         modified=datetime.now(UTC) - timedelta(days=2),
-        payload=b"abc",
+        size=3,
         max_age_minutes=60,
         reason="dump is older than max_age_minutes",
     )
-    assert path.exists() is False
 
 
-def _run_s3(
+def _refuse_s3_listing(
     settings: Settings,
     engine: Engine,
     tmp_path: Path,
@@ -169,50 +168,56 @@ def _run_s3(
     name: str,
     key: str,
     modified: datetime,
-    payload: bytes,
+    size: int,
+    reason: str,
+    min_bytes: int | None = None,
     max_age_minutes: int | None = None,
-    reason: str = "dump is empty",
-) -> Path:
-    held: dict[str, Path] = {}
-    real = tempfile.mkstemp
-
-    def wrapped(*args: object, **kwargs: object) -> tuple[int, str]:
-        descriptor, filename = real(*args, **kwargs)
-        held["path"] = Path(filename)
-        return descriptor, filename
+) -> None:
+    store = _FixedStore(key, modified, size)
 
     def fake_open(**kwargs: object) -> _FixedStore:
-        return _FixedStore(key, modified, payload)
+        return store
 
-    monkeypatch.setattr("pgrestoredrill.sources.s3.tempfile.mkstemp", wrapped)
+    def fail_mkstemp(*args: object, **kwargs: object) -> tuple[int, str]:
+        raise AssertionError("should not create a temp file")
+
+    monkeypatch.setattr("pgrestoredrill.sources.s3.tempfile.mkstemp", fail_mkstemp)
     monkeypatch.setattr("pgrestoredrill.runner.acquire.open_s3_store", fake_open)
     _block_restore(monkeypatch)
     completed = execute_drill(
         settings,
-        _s3(tmp_path, name, max_age_minutes=max_age_minutes),
+        _s3(tmp_path, name, min_bytes=min_bytes, max_age_minutes=max_age_minutes),
     )
+    assert store.opened is False
     assert completed.status == STATUS_FAILED
     assert completed.error == reason
     assert completed.dump_path == key
-    assert completed.dump_bytes == len(payload)
-    assert completed.dump_sha256 == hashlib.sha256(payload).hexdigest()
+    assert completed.dump_bytes == size
+    assert completed.dump_sha256 is None
     assert completed.database_name is None
+    assert completed.restore_seconds is None
     _assert_failed_history(engine, completed.run_id)
-    return held["path"]
+    with Session(engine) as session:
+        run = session.get(Run, completed.run_id)
+    assert run is not None
+    assert run.dump_key == key
+    assert run.dump_bytes == size
+    assert run.dump_sha256 is None
 
 
 class _FixedStore:
-    def __init__(self, key: str, modified: datetime, payload: bytes) -> None:
+    def __init__(self, key: str, modified: datetime, size: int) -> None:
         self._key = key
         self._modified = modified
-        self._payload = payload
+        self._size = size
+        self.opened = False
 
     def list_dumps(self, bucket: str, prefix: str) -> tuple[RemoteObject, ...]:
-        return (RemoteObject(key=self._key, modified=self._modified),)
+        return (RemoteObject(key=self._key, modified=self._modified, size=self._size),)
 
     def open_dump(self, bucket: str, key: str) -> Iterator[bytes]:
-        assert key == self._key
-        yield self._payload
+        self.opened = True
+        raise AssertionError("should not download")
 
 
 def _block_restore(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -257,7 +262,13 @@ def _local(
     return _write(root, body)
 
 
-def _s3(root: Path, name: str, *, max_age_minutes: int | None) -> Path:
+def _s3(
+    root: Path,
+    name: str,
+    *,
+    min_bytes: int | None = None,
+    max_age_minutes: int | None = None,
+) -> Path:
     body: dict[str, object] = {
         "name": name,
         "source_kind": "s3",
@@ -268,6 +279,8 @@ def _s3(root: Path, name: str, *, max_age_minutes: int | None) -> Path:
         "rpo_minutes": 60,
         "assertions_file": "assertions.yaml",
     }
+    if min_bytes is not None:
+        body["min_bytes"] = min_bytes
     if max_age_minutes is not None:
         body["max_age_minutes"] = max_age_minutes
     return _write(root, body)

@@ -25,7 +25,13 @@ from pgrestoredrill.db.models import (
 )
 from pgrestoredrill.db.session import make_engine
 from pgrestoredrill.db.urls import database_name
-from pgrestoredrill.errors import DumpNotFound, DumpSourceError, RestoreFailed, RestoreTimeout
+from pgrestoredrill.errors import (
+    DumpNotFound,
+    DumpRejected,
+    DumpSourceError,
+    RestoreFailed,
+    RestoreTimeout,
+)
 from pgrestoredrill.redact import redact
 from pgrestoredrill.runner.acquire import acquire_dump
 from pgrestoredrill.runner.preflight import dump_rejection
@@ -66,7 +72,9 @@ def _execute(
             drill_name=spec.name,
             run_id=None,
             database=None,
-            dump=None,
+            dump_path=None,
+            dump_bytes=None,
+            dump_sha256=None,
             restore_seconds=None,
             error="drill is disabled",
             assertions=(),
@@ -78,6 +86,11 @@ def _execute(
         except DumpNotFound as exc:
             run = _start_run(session, drill.id, None)
             return _finish(session, run, spec.name, None, None, STATUS_ERROR, None, str(exc), ())
+        except DumpRejected as exc:
+            run = _start_run(session, drill.id, None)
+            run.dump_key = exc.key
+            run.dump_bytes = exc.size
+            return _finish(session, run, spec.name, None, None, STATUS_FAILED, None, str(exc), ())
         except DumpSourceError as exc:
             run = _start_run(session, drill.id, None)
             return _finish(
@@ -229,7 +242,9 @@ def _finish(
         drill_name=drill_name,
         run_id=run.id,
         database=database,
-        dump=dump,
+        dump_path=dump.key if dump is not None else run.dump_key,
+        dump_bytes=dump.size if dump is not None else run.dump_bytes,
+        dump_sha256=dump.sha256 if dump is not None else run.dump_sha256,
         restore_seconds=restore_seconds,
         error=error,
         assertions=assertions,
@@ -242,7 +257,9 @@ def _result(
     drill_name: str,
     run_id: UUID | None,
     database: str | None,
-    dump: LocalDump | None,
+    dump_path: str | None,
+    dump_bytes: int | None,
+    dump_sha256: str | None,
     restore_seconds: float | None,
     error: str | None,
     assertions: tuple[AssertionOutcome, ...],
@@ -252,9 +269,9 @@ def _result(
         drill_name=drill_name,
         run_id=run_id,
         database_name=database,
-        dump_path=None if dump is None else dump.key,
-        dump_bytes=None if dump is None else dump.size,
-        dump_sha256=None if dump is None else dump.sha256,
+        dump_path=dump_path,
+        dump_bytes=dump_bytes,
+        dump_sha256=dump_sha256,
         restore_seconds=restore_seconds,
         error=error,
         assertions=assertions,

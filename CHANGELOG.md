@@ -4,6 +4,10 @@
 
 ### Changed
 
+- S3 size and age checks run on the listed object (`Size` and `LastModified`)
+  before the download, and again on the streamed bytes. A listing that fails
+  is stored as failed with the key and listed size, no checksum, and the
+  object is not downloaded.
 - A drill database is refused when it has an extension other than `plpgsql`, a
   schema other than `public`, a user-defined type, a function, procedure, or
   aggregate outside the system catalogs, a large object, a collation, an

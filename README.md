@@ -54,11 +54,13 @@ to a temporary file, restored, and then the file is deleted. Credentials are
 `S3_ACCESS_KEY` and `S3_SECRET_KEY`. When both are empty, boto3 uses its
 default environment chain. They are never written to the drill file or the logs.
 
-`min_bytes` and `max_age_minutes` are optional. Before `pg_restore` runs, an
-empty dump is refused, then a dump smaller than `min_bytes`, then a dump older
-than `max_age_minutes`. Age uses the file modification time for a local dump
-and the object `LastModified` time for S3. A refused dump is stored as a failed
-run and is not restored.
+`min_bytes` and `max_age_minutes` are optional. An empty dump is refused, then
+a dump smaller than `min_bytes`, then a dump older than `max_age_minutes`.
+A local dump uses the file size and modification time. An S3 object is checked
+from its listed `Size` and `LastModified` before it is downloaded, and the same
+checks run again on the streamed bytes. A refused dump is stored as a failed
+run and is not restored. A listing that fails is not downloaded. That run
+records the object key and the listed size and has no checksum.
 
 Assertions are a YAML list. Each item is one statement, run in its own
 `READ ONLY` transaction with `statement_timeout`.

@@ -27,8 +27,16 @@ class _Store:
         assert bucket == "drills"
         assert prefix == "backups/"
         return (
-            RemoteObject(key="backups/old.dump", modified=datetime(2020, 1, 1, tzinfo=UTC)),
-            RemoteObject(key="backups/new.dump", modified=datetime(2024, 6, 1, tzinfo=UTC)),
+            RemoteObject(
+                key="backups/old.dump",
+                modified=datetime(2020, 1, 1, tzinfo=UTC),
+                size=3,
+            ),
+            RemoteObject(
+                key="backups/new.dump",
+                modified=datetime(2024, 6, 1, tzinfo=UTC),
+                size=len(_PAYLOAD),
+            ),
         )
 
     def open_dump(self, bucket: str, key: str) -> Iterator[bytes]:

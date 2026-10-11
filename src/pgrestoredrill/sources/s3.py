@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypeGuard
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
@@ -29,6 +29,7 @@ _CLIENT_ERRORS = (BotoCoreError, ClientError)
 class RemoteObject:
     key: str
     modified: datetime
+    size: int
 
 
 class ObjectStore(Protocol):
@@ -47,7 +48,7 @@ class BotoStore:
             found: list[RemoteObject] = []
             for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 for item in page.get("Contents") or []:
-                    listed = _listed(item.get("Key"), item.get("LastModified"))
+                    listed = _listed(item.get("Key"), item.get("LastModified"), item.get("Size"))
                     if listed is not None:
                         found.append(listed)
             return tuple(found)
@@ -98,20 +99,32 @@ def open_s3_store(
     return BotoStore(client)
 
 
-def download_newest_dump(store: ObjectStore, *, bucket: str, prefix: str) -> LocalDump:
+def select_newest_dump(store: ObjectStore, *, bucket: str, prefix: str) -> RemoteObject:
     dumps = [item for item in store.list_dumps(bucket, prefix) if item.key.endswith(".dump")]
     if not dumps:
         raise DumpNotFound("no custom-format dump found")
-    chosen = max(dumps, key=lambda item: (_aware(item.modified), item.key))
-    return _stream(store, bucket, chosen)
+    return max(dumps, key=lambda item: (_aware(item.modified), item.key))
 
 
-def _listed(key: str | None, modified: datetime | None) -> RemoteObject | None:
+def stream_dump(store: ObjectStore, *, bucket: str, obj: RemoteObject) -> LocalDump:
+    return _stream(store, bucket, obj)
+
+
+def download_newest_dump(store: ObjectStore, *, bucket: str, prefix: str) -> LocalDump:
+    chosen = select_newest_dump(store, bucket=bucket, prefix=prefix)
+    return stream_dump(store, bucket=bucket, obj=chosen)
+
+
+def _listed(key: str | None, modified: datetime | None, size: object) -> RemoteObject | None:
     if key is None or not key.endswith(".dump"):
         return None
-    if not isinstance(modified, datetime):
+    if not isinstance(modified, datetime) or not _is_byte_count(size):
         raise DumpSourceError("could not read the s3 dump")
-    return RemoteObject(key=key, modified=_aware(modified))
+    return RemoteObject(key=key, modified=_aware(modified), size=size)
+
+
+def _is_byte_count(value: object) -> TypeGuard[int]:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _aware(value: datetime) -> datetime:
