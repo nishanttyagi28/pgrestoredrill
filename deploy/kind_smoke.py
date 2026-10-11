@@ -68,10 +68,7 @@ def _image() -> None:
 
 def _wait_workloads() -> None:
     for name in ("deploy/metadata", "deploy/silo", "deploy/pgrestoredrill-api"):
-        subprocess.run(
-            ["kubectl", "-n", NAMESPACE, "rollout", "status", name, "--timeout=180s"],
-            check=True,
-        )
+        _rollout(name)
     completed = subprocess.run(
         [
             "kubectl",
@@ -87,6 +84,17 @@ def _wait_workloads() -> None:
     if completed.returncode != 0:
         _job_logs("job/pgrestoredrill-migrate")
         raise SystemExit(1)
+
+
+def _rollout(name: str) -> None:
+    completed = subprocess.run(
+        ["kubectl", "-n", NAMESPACE, "rollout", "status", name, "--timeout=180s"],
+        check=False,
+    )
+    if completed.returncode == 0:
+        return
+    subprocess.run(["kubectl", "-n", NAMESPACE, "describe", name], check=False)
+    raise SystemExit(1)
 
 
 def _upload_fixture() -> None:
