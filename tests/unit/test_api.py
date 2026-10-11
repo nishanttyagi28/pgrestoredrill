@@ -58,6 +58,17 @@ def test_empty_admin_token_rejects_every_bearer_token() -> None:
     assert "test-token" not in response.text
 
 
+def test_metrics_without_an_engine_is_unavailable() -> None:
+    app = _app()
+    with TestClient(app) as client:
+        get_state(app).engine = None
+        response = client.get("/metrics")
+    assert response.status_code == 503
+    assert response.json()["detail"] == "metadata database is unavailable"
+    assert "postgresql" not in response.text
+    assert "127.0.0.1" not in response.text
+
+
 def test_create_app_reads_the_admin_token(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

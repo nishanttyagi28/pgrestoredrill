@@ -6,6 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,7 @@ from pgrestoredrill.errors import (
     DrillNotFound,
     RunNotFound,
 )
+from pgrestoredrill.metrics import CONTENT_TYPE_LATEST, render_metrics
 from pgrestoredrill.runner.ack import ack_run, drill_view
 from pgrestoredrill.runner.rpo import clock
 
@@ -41,6 +43,13 @@ _AUTH = [Depends(require_admin)]
 @router.get("/healthz", response_model=Health)
 def healthz() -> Health:
     return Health(status="ok")
+
+
+@router.get("/metrics")
+def metrics(request: Request) -> Response:
+    with _session(request) as session:
+        body = render_metrics(session, clock())
+    return Response(content=body, media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get("/readyz", response_model=Health)

@@ -24,6 +24,8 @@
 
 ### Added
 
+- `GET /metrics` exposes restore duration, run counts, the time of the last
+  successful run, and whether the RPO is breached. Labels are drill names.
 - `GET /drills/{id}` reports the computed RPO status and open unacked failures.
   `POST /runs/{id}/ack` and `pgrestoredrill ack` record who acked a failed or
   errored run and a short note. A second ack is rejected. Nothing acks itself.
