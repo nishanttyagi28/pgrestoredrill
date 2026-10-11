@@ -100,3 +100,7 @@ def _text(value: object) -> str:
     if not isinstance(value, str):
         return ""
     return value.strip()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

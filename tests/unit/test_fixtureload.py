@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -82,3 +84,13 @@ def test_main_refuses_missing_credentials(
     code = main(["--dump", str(dump), "--endpoint", "http://silo:9000"])
     assert code == 1
     assert "minioadmin" not in capsys.readouterr().err
+
+
+def test_module_invokes_main() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "pgrestoredrill.fixtureload"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode != 0
