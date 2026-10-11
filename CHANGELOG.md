@@ -31,9 +31,12 @@
 
 ### Added
 
-- Container image based on `python:3.12-slim` pinned by digest, with uv and
-  `postgresql-client-16`. The process is non-root and `/healthz` is the
-  healthcheck. No secret is baked into the image.
+- Container image based on `python:3.12-slim` pinned by digest. uv 0.12.24 is
+  copied from its pinned image. The image installs `postgresql-client-17` so
+  `pg_restore` can read dumps from `pg_dump` 16 or 17. The target server stays
+  Postgres 16, so the dump must come from Postgres 16 or older. The process is
+  non-root, `/app` stays owned by root, and `/healthz` is the healthcheck. No
+  secret is baked into the image.
 - `compose.yaml` also starts a throwaway target Postgres, silo, the API, and a
   one-shot drill. `TARGET_KIND=docker` starts a local Postgres container for
   one drill and removes it afterwards. It is not used in Kubernetes.
@@ -41,9 +44,11 @@
   password comes from the pod environment. The empty-database check is the
   same one an external target uses.
 - Kubernetes manifests under `deploy/k8s`. The API uses `/readyz` and
-  `/healthz`. The CronJob runs the drill beside a Postgres sidecar and stops
-  that sidecar when the drill finishes. `make kind-smoke` runs one drill on a
-  kind cluster. The image workflow pushes to
+  `/healthz`. The image tag is `newTag` in the base kustomization; set it to a
+  released tag or a digest. The CronJob runs the drill beside a Postgres
+  sidecar, forbids overlapping runs, and deletes the finished job. `make
+  kind-smoke` runs one drill on a kind cluster. The image workflow checks the
+  process imports, runs the compose drill, runs kind, and pushes to
   `ghcr.io/nishanttyagi28/pgrestoredrill` on main and tags.
 - `GET /metrics` exposes restore duration, run counts, the time of the last
   successful run, and whether the RPO is breached. Labels are drill names.

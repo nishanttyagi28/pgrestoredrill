@@ -184,14 +184,20 @@ the sample assertions expect rows from the last hour.
 
 ```bash
 make fixture
-docker compose --profile drill up --abort-on-container-exit --exit-code-from drill
+docker compose --profile drill run --rm drill
 ```
 
-That uploads `tests/fixtures/dumps/sample.dump` to silo and runs
-`examples/compose-drill.yaml`. The drill restores into the `target` service.
-`TARGET_KIND=docker` is only for a drill on your machine: it starts a
+That command starts the migration, the target Postgres, silo, and the fixture
+upload, then runs the drill. It uploads `tests/fixtures/dumps/sample.dump` and
+runs `examples/compose-drill.yaml`. The drill restores into the `target`
+service. `TARGET_KIND=docker` is only for a drill on your machine: it starts a
 throwaway Postgres 16 container and removes it when the drill finishes, including
 when the drill fails. Do not set it in Kubernetes.
+
+The image installs `postgresql-client-17`. `pg_restore` 17 restores
+custom-format dumps written by `pg_dump` 16 or 17. The compose target and the
+sidecar are Postgres 16, so the dump has to come from Postgres 16 or older.
+Do not build the fixture with a `pg_dump` newer than 17.
 
 ## Kubernetes
 
@@ -208,7 +214,9 @@ kubectl apply -k deploy/k8s/base
 
 Replace every `replace-me` value in the Secret before you rely on it. The
 ConfigMap drill file points at `http://s3.example.invalid`; point it at your
-bucket. The image is `ghcr.io/nishanttyagi28/pgrestoredrill`.
+bucket. The image name is `ghcr.io/nishanttyagi28/pgrestoredrill`. Set `newTag`
+in `deploy/k8s/base/kustomization.yaml` to a released tag, or to a digest,
+before you apply the base. The repo sets that tag to `0.0.1`.
 
 `deploy/k8s/overlays/smoke` is only for `make kind-smoke`. It adds a metadata
 Postgres and silo, loads the sample fixture, runs the CronJob once, and checks
