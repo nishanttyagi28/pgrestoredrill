@@ -27,6 +27,7 @@ from pgrestoredrill.notes.client import client_for
 from pgrestoredrill.notes.compose import resolve_note
 from pgrestoredrill.runner.acquire import acquire_dump
 from pgrestoredrill.runner.finish import completed_result, finish_run, stored_error
+from pgrestoredrill.runner.header import version_refusal
 from pgrestoredrill.runner.preflight import dump_rejection
 from pgrestoredrill.runner.records import start_run, upsert_drill
 from pgrestoredrill.runner.report import CompletedRun
@@ -141,6 +142,21 @@ def _restore(
     if reason is not None:
         return _close(
             session, settings, run, spec.name, None, dump, STATUS_FAILED, None, reason, (), reason
+        )
+    refusal = version_refusal(dump.path)
+    if refusal is not None:
+        return _close(
+            session,
+            settings,
+            run,
+            spec.name,
+            None,
+            dump,
+            STATUS_FAILED,
+            None,
+            refusal,
+            (),
+            refusal,
         )
     database: str | None = None
     try:

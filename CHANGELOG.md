@@ -36,6 +36,10 @@
 
 ### Added
 
+- A custom-format dump newer than this `pg_restore` is refused before restore.
+  The run is stored as failed. The error names both majors, for example
+  `dump is from Postgres 17; this image restores 16 or older`. A header that
+  cannot be read does not block the restore.
 - Optional failure suggestions. `NOTES_ENABLED` defaults to false. Rules label
   the restore stderr and assertion results first. A model is called only when
   notes are enabled and the rule result is unknown, through an OpenAI-compatible
