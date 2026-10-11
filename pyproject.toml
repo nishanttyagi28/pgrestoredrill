@@ -3,6 +3,7 @@ name = "pgrestoredrill"
 version = "0.1.0"
 description = "Prove that Postgres custom-format backups actually restore."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 authors = [{ name = "Nishant Tyagi" }]
 dependencies = [
