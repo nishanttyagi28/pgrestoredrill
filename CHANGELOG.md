@@ -31,6 +31,20 @@
 
 ### Added
 
+- Container image based on `python:3.12-slim` pinned by digest, with uv and
+  `postgresql-client-16`. The process is non-root and `/healthz` is the
+  healthcheck. No secret is baked into the image.
+- `compose.yaml` also starts a throwaway target Postgres, silo, the API, and a
+  one-shot drill. `TARGET_KIND=docker` starts a local Postgres container for
+  one drill and removes it afterwards. It is not used in Kubernetes.
+- `TARGET_KIND=k8s-sidecar` restores into a Postgres sidecar on localhost. The
+  password comes from the pod environment. The empty-database check is the
+  same one an external target uses.
+- Kubernetes manifests under `deploy/k8s`. The API uses `/readyz` and
+  `/healthz`. The CronJob runs the drill beside a Postgres sidecar and stops
+  that sidecar when the drill finishes. `make kind-smoke` runs one drill on a
+  kind cluster. The image workflow pushes to
+  `ghcr.io/nishanttyagi28/pgrestoredrill` on main and tags.
 - `GET /metrics` exposes restore duration, run counts, the time of the last
   successful run, and whether the RPO is breached. Labels are drill names.
 - `GET /drills/{id}` reports the computed RPO status and open unacked failures.
