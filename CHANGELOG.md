@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.1.0] - 2026-10-11
+
 ### Changed
 
 - `make kind-smoke` prints the passed run id and status. CI pins the Postgres
