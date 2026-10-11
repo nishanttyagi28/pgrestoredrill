@@ -17,8 +17,8 @@ def test_dockerfile_is_pinned_and_checks_health() -> None:
     assert "/uv /usr/local/bin/uv" in text
     assert "install.sh" not in text
     assert "chown" not in text
-    assert "postgresql-client-17" in text
-    assert "postgresql-client-16" not in text
+    assert "postgresql-client-16" in text
+    assert "postgresql-client-17" not in text
     assert "HEALTHCHECK" in text
     assert "/healthz" in text
     assert "USER 10001" in text

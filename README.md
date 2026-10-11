@@ -194,10 +194,11 @@ service. `TARGET_KIND=docker` is only for a drill on your machine: it starts a
 throwaway Postgres 16 container and removes it when the drill finishes, including
 when the drill fails. Do not set it in Kubernetes.
 
-The image installs `postgresql-client-17`. `pg_restore` 17 restores
-custom-format dumps written by `pg_dump` 16 or 17. The compose target and the
-sidecar are Postgres 16, so the dump has to come from Postgres 16 or older.
-Do not build the fixture with a `pg_dump` newer than 17.
+The image installs `postgresql-client-16`, the same major as the compose
+target and the sidecar. `pg_restore` has to match that server. `pg_restore` 17
+sends `SET transaction_timeout`, which Postgres 16 rejects. Build the fixture
+with `pg_dump` 16 or older. `tests/fixtures/build_fixture.py` refuses a
+`pg_dump` newer than the server it dumps.
 
 ## Kubernetes
 

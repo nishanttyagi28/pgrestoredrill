@@ -32,11 +32,12 @@
 ### Added
 
 - Container image based on `python:3.12-slim` pinned by digest. uv 0.12.24 is
-  copied from its pinned image. The image installs `postgresql-client-17` so
-  `pg_restore` can read dumps from `pg_dump` 16 or 17. The target server stays
-  Postgres 16, so the dump must come from Postgres 16 or older. The process is
-  non-root, `/app` stays owned by root, and `/healthz` is the healthcheck. No
-  secret is baked into the image.
+  copied from its pinned image. The image installs `postgresql-client-16` so
+  `pg_restore` matches the Postgres 16 target. A newer `pg_restore` sends
+  `SET transaction_timeout`, which Postgres 16 rejects. The fixture builder
+  refuses a `pg_dump` newer than the server it dumps. The process is non-root,
+  `/app` stays owned by root, and `/healthz` is the healthcheck. No secret is
+  baked into the image.
 - `compose.yaml` also starts a throwaway target Postgres, silo, the API, and a
   one-shot drill. `TARGET_KIND=docker` starts a local Postgres container for
   one drill and removes it afterwards. It is not used in Kubernetes.
