@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from pgrestoredrill.config import Settings
 from pgrestoredrill.db.models import STATUS_FAILED, Run
-from pgrestoredrill.runner.header import pg_restore_major
 from pgrestoredrill.runner.service import execute_drill
 from tests.integration.preflight_helpers import local_config
 
@@ -24,7 +23,6 @@ def test_a_postgres_17_dump_is_refused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    assert pg_restore_major() == 16
     folder = tmp_path / "dumps"
     folder.mkdir()
     (folder / "seventeen.dump").write_bytes(_header_17())
@@ -37,6 +35,7 @@ def test_a_postgres_17_dump_is_refused(
         calls.append(prompt)
         raise AssertionError("should not call")
 
+    monkeypatch.setattr("pgrestoredrill.runner.header.pg_restore_major", lambda: 16)
     monkeypatch.setattr("pgrestoredrill.runner.service.restore_dump", explode)
     monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", explode)
     monkeypatch.setattr("pgrestoredrill.notes.client.HttpNoteClient.complete", complete)
