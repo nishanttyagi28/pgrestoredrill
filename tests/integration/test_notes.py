@@ -203,7 +203,7 @@ def _drill(
         update={
             "notes_enabled": enabled,
             "notes_url": "https://api.x.ai/v1",
-            "notes_model": "grok-4.7",
+            "notes_model": "test-model",
             "notes_api_key": "test-key",
             "alert_webhook_url": _HOOK,
         }

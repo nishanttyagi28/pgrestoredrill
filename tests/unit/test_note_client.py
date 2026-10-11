@@ -65,7 +65,8 @@ def test_complete_reads_the_message_content() -> None:
     server, thread = _serve(_Handler)
     try:
         port = server.server_address[1]
-        text = HttpNoteClient(f"http://127.0.0.1:{port}/v1", "grok-4.7", _KEY).complete("classify")
+        client = HttpNoteClient(f"http://127.0.0.1:{port}/v1", "test-model", _KEY)
+        text = client.complete("classify")
     finally:
         _stop(server, thread)
     assert text == content
@@ -97,7 +98,8 @@ def test_a_response_over_64_kib_is_rejected() -> None:
     try:
         port = server.server_address[1]
         with pytest.raises(NoteError) as caught:
-            HttpNoteClient(f"http://127.0.0.1:{port}/v1", "test-model", _KEY).complete("classify")
+            client = HttpNoteClient(f"http://127.0.0.1:{port}/v1", "test-model", _KEY)
+            client.complete("classify")
     finally:
         _stop(server, thread)
     assert str(caught.value) == "note request failed"
@@ -125,7 +127,8 @@ def test_a_redirect_is_one_failed_attempt() -> None:
     try:
         port = server.server_address[1]
         with pytest.raises(NoteError) as caught:
-            HttpNoteClient(f"http://127.0.0.1:{port}/v1", "grok-4.7", _KEY).complete("classify")
+            client = HttpNoteClient(f"http://127.0.0.1:{port}/v1", "test-model", _KEY)
+            client.complete("classify")
     finally:
         _stop(server, thread)
     assert paths == ["/v1/chat/completions"]
@@ -140,7 +143,7 @@ def _settings(enabled: bool, url: str = "https://api.x.ai/v1") -> Settings:
         log_level="INFO",
         notes_enabled=enabled,
         notes_url=url,
-        notes_model="grok-4.7",
+        notes_model="test-model",
         notes_api_key=_KEY,
     )
 

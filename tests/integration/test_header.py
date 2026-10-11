@@ -44,7 +44,7 @@ def test_a_postgres_17_dump_is_refused(
         update={
             "notes_enabled": True,
             "notes_url": "https://api.x.ai/v1",
-            "notes_model": "grok-4.7",
+            "notes_model": "test-model",
             "notes_api_key": "test-key",
         }
     )
