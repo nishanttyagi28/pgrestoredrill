@@ -19,8 +19,8 @@ def prepare_sidecar(
     password: str,
     host: str = "127.0.0.1",
     port: int = 5432,
-    attempts: int = 30,
-    pause: float = 0.5,
+    attempts: int = 60,
+    pause: float = 1.0,
     sleep: Callable[[float], None] = time.sleep,
 ) -> str:
     """Create an empty drill database on the sidecar. The password is not logged."""

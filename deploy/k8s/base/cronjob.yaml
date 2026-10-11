@@ -57,10 +57,11 @@ spec:
               args:
                 - |
                   set -euo pipefail
-                  export PGDATA=/var/lib/postgresql/data
                   export LANG=C.UTF-8
                   export POSTGRES_PASSWORD="$(cat /password/password)"
+                  export PGDATA=/var/lib/postgresql/data/pgdata
                   if [ ! -s "$PGDATA/PG_VERSION" ]; then
+                    mkdir -p "$PGDATA"
                     printf '%s\n' "$POSTGRES_PASSWORD" > /tmp/pwfile
                     chmod 600 /tmp/pwfile
                     initdb --username=postgres --pwfile=/tmp/pwfile --auth=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8 -D "$PGDATA"

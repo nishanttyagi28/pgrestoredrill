@@ -32,6 +32,7 @@ def test_api_and_cronjob_are_locked_down() -> None:
     assert "emptyDir: {}" in cron
     assert "replace-me" in secret
     assert cron.count("runAsNonRoot: true") >= 4
+    assert "/var/lib/postgresql/data/pgdata" in cron
     base = "\n".join(
         path.read_text(encoding="utf-8") for path in (_MANIFESTS / "base").rglob("*.yaml")
     )
