@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.runner.rpo import RPO_BREACHED, rpo_for_drill
 
 log = structlog.get_logger()
+_DEDUP_CONSTRAINT = "uq_alerts_dedup_key"
 
 
 def notify_after_run(session: Session, settings: Settings, completed: CompletedRun) -> None:
@@ -77,25 +78,43 @@ def _once(
     reason: str,
     now: datetime,
 ) -> None:
-    existing = session.scalar(select(Alert.id).where(Alert.dedup_key == dedup_key))
-    if existing is not None:
-        return
+    row = Alert(
+        drill_id=drill_id,
+        run_id=run_id,
+        dedup_key=dedup_key,
+        status=status,
+        reason=reason,
+        sent_at=None,
+        response_status=None,
+    )
+    session.add(row)
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        if _duplicate_dedup(exc):
+            return
+        raise
     code = deliver(
         url,
         {"drill": drill_name, "status": status, "reason": reason, "run_id": str(run_id)},
     )
-    session.add(
-        Alert(
-            drill_id=drill_id,
-            run_id=run_id,
-            dedup_key=dedup_key,
-            status=status,
-            reason=reason,
-            sent_at=now,
-            response_status=code,
+    _save_delivery(session, row.id, code, now)
+
+
+def _save_delivery(session: Session, alert_id: int, code: int | None, now: datetime) -> None:
+    if code is not None and 200 <= code < 300:
+        session.execute(
+            update(Alert).where(Alert.id == alert_id).values(response_status=code, sent_at=now)
         )
-    )
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
+    else:
+        session.execute(update(Alert).where(Alert.id == alert_id).values(response_status=code))
+    session.commit()
+
+
+def _duplicate_dedup(exc: IntegrityError) -> bool:
+    orig = exc.orig
+    constraint = getattr(getattr(orig, "diag", None), "constraint_name", None)
+    if constraint == _DEDUP_CONSTRAINT:
+        return True
+    return getattr(orig, "sqlstate", None) == "23505" and _DEDUP_CONSTRAINT in str(orig)

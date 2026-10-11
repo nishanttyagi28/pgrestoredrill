@@ -98,8 +98,9 @@ set, a failed or errored run sends one JSON POST:
 A drill that is `breached` sends one more post with `"status": "breached"`.
 The body has only those four fields. The same failure is not sent again. The
 request times out after 5 seconds and is tried at most 3 times, with a short
-pause between tries. A redirect is not followed. The attempt is stored with the
-time and the response status. A delivery failure does not change the run result.
+pause between tries. A redirect is not followed. The attempt is stored before
+the request is sent, so a second sender skips it. `sent_at` is set only when a
+response is 2xx. A delivery failure does not change the run result.
 
 ## Metrics
 

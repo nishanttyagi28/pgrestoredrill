@@ -72,10 +72,12 @@ def test_delivery_retries_then_gives_up_without_changing_the_run(
     _assert_run(engine, completed.run_id, STATUS_FAILED, "dump is empty")
     with Session(engine) as session:
         stored = list(session.scalars(select(Alert).order_by(Alert.id)).all())
+        statuses = [item.response_status for item in stored]
+        sent = [item.sent_at for item in stored]
         notify_after_run(session, hooked, completed)
     assert attempts == ["failed", "failed", "failed", "breached", "breached", "breached"]
-    assert [item.response_status for item in stored] == [None, None]
-    assert all(item.sent_at is not None for item in stored)
+    assert statuses == [None, None]
+    assert sent == [None, None]
     assert _URL not in (completed.error or "")
 
 

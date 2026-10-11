@@ -4,6 +4,8 @@
 
 ### Changed
 
+- An alert row is inserted before the webhook is called. A duplicate dedup key
+  is not sent again. `sent_at` stays empty unless a response is 2xx.
 - S3 size and age checks run on the listed object (`Size` and `LastModified`)
   before the download, and again on the streamed bytes. A listing that fails
   is stored as failed with the key and listed size, no checksum, and the
