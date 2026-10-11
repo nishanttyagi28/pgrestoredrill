@@ -10,3 +10,6 @@ resources:
   - api-service.yaml
   - migration-job.yaml
   - cronjob.yaml
+images:
+  - name: ghcr.io/nishanttyagi28/pgrestoredrill
+    newTag: "0.0.1"

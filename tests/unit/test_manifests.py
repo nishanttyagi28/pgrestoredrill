@@ -27,7 +27,14 @@ def test_api_and_cronjob_are_locked_down() -> None:
     assert "allowPrivilegeEscalation: false" in api
     assert "concurrencyPolicy: Forbid" in cron
     assert "activeDeadlineSeconds:" in cron
+    assert "ttlSecondsAfterFinished:" in cron
     assert "restartPolicy: Always" in cron
     assert "emptyDir: {}" in cron
     assert "replace-me" in secret
-    assert "runAsNonRoot: true" in cron
+    assert cron.count("runAsNonRoot: true") >= 4
+    base = "\n".join(
+        path.read_text(encoding="utf-8") for path in (_MANIFESTS / "base").rglob("*.yaml")
+    )
+    assert ":latest" not in base
+    kustomization = (_MANIFESTS / "base" / "kustomization.yaml").read_text(encoding="utf-8")
+    assert 'newTag: "0.0.1"' in kustomization

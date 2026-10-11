@@ -11,16 +11,18 @@ spec:
     spec:
       backoffLimit: 1
       activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 600
       template:
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
           securityContext:
+            runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
           initContainers:
             - name: password
-              image: postgres:16
+              image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:
@@ -48,7 +50,7 @@ spec:
                   cpu: 100m
                   memory: 64Mi
             - name: postgres
-              image: postgres:16
+              image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
               imagePullPolicy: IfNotPresent
               restartPolicy: Always
               command: ["/bin/bash", "-c"]
@@ -90,7 +92,7 @@ spec:
                   memory: 512Mi
           containers:
             - name: drill
-              image: ghcr.io/nishanttyagi28/pgrestoredrill:latest
+              image: ghcr.io/nishanttyagi28/pgrestoredrill
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-c"]
               args:

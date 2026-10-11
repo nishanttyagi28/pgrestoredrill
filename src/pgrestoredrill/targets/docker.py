@@ -23,7 +23,7 @@ log = structlog.get_logger()
 
 _NAME = re.compile(r"^pgrestoredrill-[0-9a-f]{32}$")
 _PORT = re.compile(r"^127\.0\.0\.1:(?P<port>\d+)$")
-_IMAGE = "postgres:16"
+_IMAGE = "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
 _START_FAILED = "could not start the docker target"
 
 

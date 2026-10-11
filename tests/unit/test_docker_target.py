@@ -65,7 +65,8 @@ def test_open_starts_postgres_16_on_localhost(monkeypatch: pytest.MonkeyPatch) -
     finally:
         target.close()
     run = next(call for call in fake.calls if call[0][1] == "run")
-    assert run[0][-1] == "postgres:16"
+    pinned = "postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d"
+    assert run[0][-1] == pinned
     assert "127.0.0.1::5432" in run[0]
     assert run[1] is not None
     assert run[1]["POSTGRES_PASSWORD"] == _PASSWORD
@@ -243,3 +244,24 @@ def test_cleanup_failure_is_swallowed() -> None:
 
     target = DockerTarget(runner=explode, password=_PASSWORD, name="pgrestoredrill-" + ("ab" * 16))
     target.close()
+
+
+def test_two_targets_get_different_random_passwords() -> None:
+    passwords: list[str] = []
+
+    def runner(args: Sequence[str], *, env: Mapping[str, str] | None = None) -> CommandResult:
+        assert env is not None
+        passwords.append(env["POSTGRES_PASSWORD"])
+        return CommandResult(0, "")
+
+    first = "pgrestoredrill-" + ("ab" * 16)
+    second = "pgrestoredrill-" + ("cd" * 16)
+    DockerTarget(runner=runner, name=first)._start()
+    DockerTarget(runner=runner, name=second)._start()
+    assert len(passwords) == 2
+    assert passwords[0] != passwords[1]
+    assert all(_hex_password(item) for item in passwords)
+
+
+def _hex_password(value: str) -> bool:
+    return len(value) >= 32 and all(char in "0123456789abcdef" for char in value)

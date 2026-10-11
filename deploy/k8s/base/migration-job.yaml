@@ -17,7 +17,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: ghcr.io/nishanttyagi28/pgrestoredrill:latest
+          image: ghcr.io/nishanttyagi28/pgrestoredrill
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
