@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- MIT license (`LICENSE`) and `license = "MIT"` in `pyproject.toml`.
+
+### Changed
+
+- The README says why a dump that exits 0 is not a tested restore, shows a
+  real `make drill` pass, and tells you to set `newTag` to `v0.1.0`.
+- The base kustomization `newTag` is `v0.1.0`.
+
 ### Fixed
 
 - A failure-note prompt drops `DETAIL:` and `CONTEXT:` lines, masks IPv6
