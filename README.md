@@ -1,6 +1,6 @@
 # pgrestoredrill
 
-pgrestoredrill checks that a Postgres backup can be restored. It takes the newest custom-format dump (`pg_dump -Fc`) from a local folder or an S3-compatible bucket, restores it into an empty throwaway database, runs read-only SQL assertions, and stores the run so you can see a failed restore and a good restore that is too old.
+pgrestoredrill checks that a Postgres backup can be restored. It takes the newest custom-format dump (`pg_dump -Fc`) from a local folder or an S3-compatible bucket, restores it into an empty throwaway database, runs read-only SQL assertions, and stores the run.
 
 ## Quickstart
 
@@ -29,7 +29,7 @@ make fixture
 docker compose --profile drill run --rm drill
 ```
 
-That uploads `tests/fixtures/dumps/sample.dump` and runs `examples/compose-drill.yaml` against `target`. Build the fixture first. The sample assertions expect rows from the last hour. `TARGET_KIND=docker` starts one local Postgres 16 container and removes it when the drill finishes. Leave that kind unset on Kubernetes.
+That uploads `tests/fixtures/dumps/sample.dump` and runs `examples/compose-drill.yaml` against `target`. The sample assertions expect rows from the last hour. `TARGET_KIND=docker` starts one local Postgres 16 container and removes it when the drill finishes. Leave that kind unset on Kubernetes.
 
 ### Kubernetes
 
@@ -80,7 +80,7 @@ Notes stay off until `NOTES_ENABLED` is true. Rules run first: missing extension
 
 ## Limitations
 
-Postgres custom-format dumps only. The image and the sidecar restore dumps from Postgres 16 or older for now. A newer server, a newer `pg_dump`, archive format 1.16 or newer, or an unreadable header is refused before restore. One error looks like `dump is from Postgres 17; this image restores 16 or older`, and the run is failed. Alert delivery is at-most-once with one resend.
+Postgres custom-format dumps only. The image and the sidecar restore dumps from Postgres 16 or older. A newer server, a newer `pg_dump`, archive format 1.16 or newer, or an unreadable header is refused before restore. One error looks like `dump is from Postgres 17; this image restores 16 or older`, and the run is failed. Alert delivery is at-most-once with one resend.
 
 ## Development
 
