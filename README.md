@@ -152,8 +152,9 @@ pgrestoredrill ack RUN_ID --by "Ada" --note "checked the restored rows"
 ```
 
 The JSON body is `{"by": "Ada", "note": "checked the restored rows"}`. Only a
-failed or errored run can be acked. A second ack returns 409. A passed run
-returns 400. No process acks a run on its own. An ack does not change the RPO
+failed or errored run can be acked. A second ack returns 409, including when
+two acks arrive together. A passed run returns 400. No process acks a run on
+its own. An ack does not change the RPO
 status.
 
 `make test` needs the same Postgres server and client tools. It creates and

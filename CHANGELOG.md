@@ -17,6 +17,7 @@
 
 ### Fixed
 
+- Acking a run is one conditional update. A concurrent second ack is rejected.
 - The alert webhook does not follow redirects. A 3xx response is a failed attempt.
 - An interrupted S3 download deletes its temporary dump file, including when
   the interruption is `KeyboardInterrupt`.

@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from pgrestoredrill.db.models import STATUS_ERROR, STATUS_FAILED, Drill, Run
@@ -60,18 +61,25 @@ def ack_run(
     text = note.strip()
     if actor == "" or len(actor) > _BY_LIMIT or text == "" or len(text) > _NOTE_LIMIT:
         raise AckInvalid()
+    changed = session.execute(
+        update(Run)
+        .where(
+            Run.id == run_id,
+            Run.acked_at.is_(None),
+            Run.status.in_((STATUS_FAILED, STATUS_ERROR)),
+        )
+        .values(acked_by=actor, acked_at=now, note=text)
+    )
+    updated = isinstance(changed, CursorResult) and changed.rowcount == 1
+    session.commit()
+    if updated:
+        return AckRecord(run_id=run_id, by=actor, note=text, acked_at=now)
     run = session.get(Run, run_id)
     if run is None:
         raise RunNotFound()
     if run.status not in {STATUS_FAILED, STATUS_ERROR}:
         raise AckNotAllowed()
-    if run.acked_at is not None:
-        raise AlreadyAcked()
-    run.acked_by = actor
-    run.acked_at = now
-    run.note = text
-    session.commit()
-    return AckRecord(run_id=run.id, by=actor, note=text, acked_at=now)
+    raise AlreadyAcked()
 
 
 def drill_view(session: Session, drill_id: UUID, now: datetime) -> DrillView:

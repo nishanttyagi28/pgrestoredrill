@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from threading import Barrier, Thread
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.dml import Update
 
 from pgrestoredrill.api.app import create_app
 from pgrestoredrill.cli import dispatch
 from pgrestoredrill.config import Settings
 from pgrestoredrill.db.models import STATUS_ERROR, STATUS_FAILED, STATUS_PASSED, Drill, Run
+from pgrestoredrill.errors import AlreadyAcked
+from pgrestoredrill.runner.ack import AckRecord, ack_run
 
 _TOKEN = "test-token"
 _AUTH = {"Authorization": f"Bearer {_TOKEN}"}
@@ -110,6 +114,56 @@ def test_rpo_on_the_drill_route_uses_the_injected_clock(
         unknown = client.get(f"/drills/{quiet}", headers=_AUTH)
     assert unknown.json()["rpo_status"] == "unknown"
     assert unknown.json()["open_failures"] == []
+
+
+def test_two_sessions_cannot_ack_the_same_run(
+    engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with Session(engine) as session:
+        drill = _add_drill(session, "ack-race")
+        failed = _run(session, drill.id, STATUS_FAILED, _NOW, "dump is empty")
+        session.commit()
+        run_id = failed.id
+    barrier = Barrier(2)
+    original = Session.execute
+
+    def execute(self: Session, statement: object, *args: object, **kwargs: object) -> object:
+        if isinstance(statement, Update):
+            barrier.wait(timeout=5)
+        return original(self, statement, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "execute", execute)
+    outcomes: list[AckRecord | str] = []
+    errors: list[BaseException] = []
+
+    def attempt(name: str) -> None:
+        try:
+            with Session(engine) as session:
+                try:
+                    outcomes.append(
+                        ack_run(session, run_id, by=name, note="checked the rows", now=_NOW)
+                    )
+                except AlreadyAcked:
+                    outcomes.append(name)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [Thread(target=attempt, args=(name,)) for name in ("Ada", "Bea")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert errors == []
+    assert not any(thread.is_alive() for thread in threads)
+    winners = [item for item in outcomes if isinstance(item, AckRecord)]
+    assert len(winners) == 1
+    assert len(outcomes) == 2
+    with Session(engine) as session:
+        stored = session.get(Run, run_id)
+    assert stored is not None
+    assert stored.acked_by == winners[0].by
+    assert stored.note == "checked the rows"
 
 
 def _seed(engine: Engine) -> tuple[str, str, str, str]:
