@@ -70,7 +70,7 @@ The drill file sets the source, `rpo_minutes`, assertions, optional `min_bytes` 
 
 RPO is computed on read. `unknown` means no finished run. `ok` means the newest pass finished within `rpo_minutes`, including a pass that is exactly that old. `breached` means that pass is older, or every finished run failed or errored.
 
-A failed or errored run posts `drill`, `status`, `reason`, and `run_id` when `ALERT_WEBHOOK_URL` is set. A breach posts once more with status `breached`. The same failure is inserted once. `sent_at` is set only for a 2xx response. A 3xx response is final and is not retried. A row with an empty `sent_at` and an empty `response_status` is sent once more on a later run, after it is more than 10 minutes old. Delivery does not change the run.
+A failed or errored run posts `drill`, `status`, `reason`, and `run_id` when `ALERT_WEBHOOK_URL` is set. A breach posts once more with status `breached`. The same failure is inserted once. `sent_at` is set only for a 2xx response. A 3xx response is final and is not retried. A row with an empty `sent_at` and an empty `response_status` is claimed with one update and sent once more on a later run, after it is more than 10 minutes old. Delivery does not change the run.
 
 Ack a failed or errored run with `pgrestoredrill ack RUN_ID --by "Ada" --note "checked the restored rows"` or `POST /runs/{id}/ack`. A second ack is rejected. A passed run is rejected. Nothing acks itself. The ack text is stored on `note` and does not change RPO.
 

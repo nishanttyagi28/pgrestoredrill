@@ -8,6 +8,8 @@
   addresses, quoted host names, `PGPASSWORD` assignments, `sk-` tokens, and
   base64 or hex runs of 24 or more characters.
 - A note response larger than 64 KiB is discarded. The rule result is kept.
+- A stuck alert is claimed with one conditional update before the resend.
+  Concurrent runs send that alert once.
 
 ## [0.1.0] - 2026-10-11
 

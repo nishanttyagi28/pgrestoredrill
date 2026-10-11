@@ -134,10 +134,29 @@ def _resend_stuck(session: Session, url: str, now: datetime, pending: list[int])
         stamp = run.finished_at or run.started_at
         if _aware(stamp) >= cutoff:
             continue
-        code = deliver(url, _payload(drill.name, alert.status, alert.reason, alert.run_id, run))
+        payload = _payload(drill.name, alert.status, alert.reason, alert.run_id, run)
+        claimed_id = alert.id
+        if not _claim(session, claimed_id):
+            continue
+        code = deliver(url, payload)
         if code is None:
             code = _NO_STATUS
-        _save_delivery(session, alert.id, code, now)
+        _save_delivery(session, claimed_id, code, now)
+
+
+def _claim(session: Session, alert_id: int) -> bool:
+    result = session.connection().execute(
+        update(Alert)
+        .where(
+            Alert.id == alert_id,
+            Alert.sent_at.is_(None),
+            Alert.response_status.is_(None),
+        )
+        .values(response_status=_NO_STATUS)
+    )
+    claimed = result.rowcount == 1
+    session.commit()
+    return claimed
 
 
 def _payload(
