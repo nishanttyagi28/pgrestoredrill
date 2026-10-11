@@ -2,8 +2,23 @@
 
 ## Unreleased
 
+### Fixed
+
+- A failure-note prompt drops `DETAIL:` and `CONTEXT:` lines, masks IPv6
+  addresses, quoted host names, `PGPASSWORD` assignments, `sk-` tokens, and
+  base64 or hex runs of 24 or more characters.
+- A note response larger than 64 KiB is discarded. The rule result is kept.
+- A stuck alert is claimed with one conditional update before the resend.
+  Concurrent runs send that alert once.
+- A dump written by a newer `pg_dump`, an archive format of 1.16 or newer, or
+  an unreadable header is refused before restore.
+
+## [0.1.0] - 2026-10-11
+
 ### Changed
 
+- `make kind-smoke` prints the passed run id and status. CI pins the Postgres
+  16 service image by digest.
 - The restore duration histogram includes buckets up to 3600 seconds.
   `GET /metrics` is unauthenticated. `pgrestoredrill_rpo_breached` is how to
   catch a drill that has stopped running.
@@ -21,7 +36,12 @@
 ### Fixed
 
 - Acking a run is one conditional update. A concurrent second ack is rejected.
-- The alert webhook does not follow redirects. A 3xx response is a failed attempt.
+- The alert webhook does not follow redirects. A 3xx response is a final
+  failure and is not retried.
+- An alert with an empty `sent_at` and an empty `response_status` is sent
+  again on a later run when the alert's run finished more than 10 minutes
+  ago. The resend happens once. A resend that gets no HTTP status is marked
+  so it is not selected again. `sent_at` stays empty unless the response is 2xx.
 - An interrupted S3 download deletes its temporary dump file, including when
   the interruption is `KeyboardInterrupt`.
 - `pg_restore` receives `--host`, `--port`, `--username`, and `--dbname` as
@@ -31,6 +51,19 @@
 
 ### Added
 
+- A custom-format dump newer than this `pg_restore` is refused before restore.
+  The run is stored as failed. The error names both majors, for example
+  `dump is from Postgres 17; this image restores 16 or older`. A `pg_dump`
+  newer than this client is refused even when the server version is older.
+  Archive format 1.16 or newer needs `pg_restore` 17 or newer. An unreadable
+  or truncated header is refused.
+- Optional failure suggestions. `NOTES_ENABLED` defaults to false. Rules label
+  the restore stderr and assertion results first. A model is called only when
+  notes are enabled and the rule result is unknown, through an OpenAI-compatible
+  HTTP endpoint (`NOTES_URL`, `NOTES_MODEL`, `NOTES_API_KEY`). The prompt is the
+  masked stderr tail and the assertion names. A reply is stored only when it
+  matches the note schema. `GET /runs/{id}` and the alert payload include it,
+  marked as a suggestion. It does not ack, retry, or change the run.
 - Container image based on `python:3.12-slim` pinned by digest. uv 0.12.24 is
   copied from its pinned image. The image installs `postgresql-client-16` so
   `pg_restore` matches the Postgres 16 target. A newer `pg_restore` sends

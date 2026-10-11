@@ -1,6 +1,6 @@
 [project]
 name = "pgrestoredrill"
-version = "0.0.1"
+version = "0.1.0"
 description = "Prove that Postgres custom-format backups actually restore."
 readme = "README.md"
 requires-python = ">=3.12"

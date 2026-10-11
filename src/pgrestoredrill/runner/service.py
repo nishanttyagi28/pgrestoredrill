@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pgrestoredrill.alerts.notify import notify_after_run
@@ -15,15 +13,7 @@ from pgrestoredrill.assertions.loader import load_assertions
 from pgrestoredrill.assertions.models import AssertionOutcome, AssertionSpec
 from pgrestoredrill.assertions.runner import run_assertions
 from pgrestoredrill.config import Settings
-from pgrestoredrill.db.models import (
-    STATUS_ERROR,
-    STATUS_FAILED,
-    STATUS_PASSED,
-    STATUS_RUNNING,
-    AssertionResult,
-    Drill,
-    Run,
-)
+from pgrestoredrill.db.models import STATUS_ERROR, STATUS_FAILED, STATUS_PASSED, Drill, Run
 from pgrestoredrill.db.session import make_engine
 from pgrestoredrill.db.urls import database_name
 from pgrestoredrill.errors import (
@@ -33,9 +23,13 @@ from pgrestoredrill.errors import (
     RestoreFailed,
     RestoreTimeout,
 )
-from pgrestoredrill.redact import redact
+from pgrestoredrill.notes.client import client_for
+from pgrestoredrill.notes.compose import resolve_note
 from pgrestoredrill.runner.acquire import acquire_dump
+from pgrestoredrill.runner.finish import completed_result, finish_run, stored_error
+from pgrestoredrill.runner.header import version_refusal
 from pgrestoredrill.runner.preflight import dump_rejection
+from pgrestoredrill.runner.records import start_run, upsert_drill
 from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.runner.restore import restore_dump
 from pgrestoredrill.runner.spec import DrillFile, load_drill, resolve_from_config
@@ -44,7 +38,6 @@ from pgrestoredrill.targets.external import ExternalTarget
 from pgrestoredrill.targets.opening import open_restore_url
 
 log = structlog.get_logger()
-_ERROR_LIMIT = 2000
 
 
 def execute_drill(settings: Settings, config_path: Path) -> CompletedRun:
@@ -67,11 +60,11 @@ def _execute(
     config_path: Path,
     assertions: list[AssertionSpec],
 ) -> CompletedRun:
-    drill = _upsert_drill(session, spec, assertions)
+    drill = upsert_drill(session, spec, assertions)
     session.commit()
     log.info("drill started", drill=spec.name, source_kind=spec.source_kind)
     if not spec.enabled:
-        return _result(
+        return completed_result(
             status=STATUS_ERROR,
             drill_name=spec.name,
             run_id=None,
@@ -88,25 +81,42 @@ def _execute(
         try:
             dump = acquire_dump(settings, spec, config_path)
         except DumpNotFound as exc:
-            run = _start_run(session, drill.id, None)
-            return _finish(session, run, spec.name, None, None, STATUS_ERROR, None, str(exc), ())
+            run = start_run(session, drill.id, None)
+            return _close(
+                session, settings, run, spec.name, None, None, STATUS_ERROR, None, str(exc), (), ""
+            )
         except DumpRejected as exc:
-            run = _start_run(session, drill.id, None)
+            run = start_run(session, drill.id, None)
             run.dump_key = exc.key
             run.dump_bytes = exc.size
-            return _finish(session, run, spec.name, None, None, STATUS_FAILED, None, str(exc), ())
-        except DumpSourceError as exc:
-            run = _start_run(session, drill.id, None)
-            return _finish(
+            return _close(
                 session,
+                settings,
+                run,
+                spec.name,
+                None,
+                None,
+                STATUS_FAILED,
+                None,
+                str(exc),
+                (),
+                "",
+            )
+        except DumpSourceError as exc:
+            run = start_run(session, drill.id, None)
+            detail = stored_error(exc)
+            return _close(
+                session,
+                settings,
                 run,
                 spec.name,
                 None,
                 None,
                 STATUS_ERROR,
                 None,
-                _stored_error(exc),
+                detail,
                 (),
+                detail,
             )
         return _restore(session, settings, spec, drill, dump, assertions)
     finally:
@@ -122,7 +132,7 @@ def _restore(
     dump: LocalDump,
     assertions: list[AssertionSpec],
 ) -> CompletedRun:
-    run = _start_run(session, drill.id, dump)
+    run = start_run(session, drill.id, dump)
     reason = dump_rejection(
         dump,
         min_bytes=spec.min_bytes,
@@ -130,7 +140,24 @@ def _restore(
         now=datetime.now(UTC),
     )
     if reason is not None:
-        return _finish(session, run, spec.name, None, dump, STATUS_FAILED, None, reason, ())
+        return _close(
+            session, settings, run, spec.name, None, dump, STATUS_FAILED, None, reason, (), reason
+        )
+    refusal = version_refusal(dump.path)
+    if refusal is not None:
+        return _close(
+            session,
+            settings,
+            run,
+            spec.name,
+            None,
+            dump,
+            STATUS_FAILED,
+            None,
+            refusal,
+            (),
+            refusal,
+        )
     database: str | None = None
     try:
         with open_restore_url(settings) as restore_url:
@@ -146,8 +173,9 @@ def _restore(
                 statement_timeout_ms=spec.statement_timeout_ms,
             )
             status = STATUS_PASSED if all(item.passed for item in results) else STATUS_FAILED
-            return _finish(
+            return _close(
                 session,
+                settings,
                 run,
                 spec.name,
                 database,
@@ -156,65 +184,29 @@ def _restore(
                 outcome.duration_seconds,
                 None,
                 tuple(results),
+                outcome.stderr_tail,
             )
     except Exception as exc:
         seconds = exc.duration_seconds if isinstance(exc, (RestoreFailed, RestoreTimeout)) else None
-        return _finish(
+        detail = stored_error(exc)
+        return _close(
             session,
+            settings,
             run,
             spec.name,
             database,
             dump,
             STATUS_ERROR,
             seconds,
-            _stored_error(exc),
+            detail,
             (),
+            _stderr(exc, detail),
         )
 
 
-def _upsert_drill(session: Session, spec: DrillFile, assertions: list[AssertionSpec]) -> Drill:
-    payload = [item.model_dump(by_alias=True) for item in assertions]
-    drill = session.scalar(select(Drill).where(Drill.name == spec.name))
-    if drill is None:
-        drill = Drill(
-            id=uuid4(),
-            name=spec.name,
-            source_kind=spec.source_kind,
-            source_uri=spec.source_uri,
-            rpo_minutes=spec.rpo_minutes,
-            assertions=payload,
-            enabled=spec.enabled,
-        )
-        session.add(drill)
-        return drill
-    drill.source_kind = spec.source_kind
-    drill.source_uri = spec.source_uri
-    drill.rpo_minutes = spec.rpo_minutes
-    drill.assertions = payload
-    drill.enabled = spec.enabled
-    return drill
-
-
-def _start_run(session: Session, drill_id: UUID, dump: LocalDump | None) -> Run:
-    run = Run(
-        id=uuid4(),
-        drill_id=drill_id,
-        status=STATUS_RUNNING,
-        dump_key=None if dump is None else dump.key,
-        dump_bytes=None if dump is None else dump.size,
-        dump_sha256=None if dump is None else dump.sha256,
-        restore_seconds=None,
-        started_at=datetime.now(UTC),
-        finished_at=None,
-        error=None,
-    )
-    session.add(run)
-    session.commit()
-    return run
-
-
-def _finish(
+def _close(
     session: Session,
+    settings: Settings,
     run: Run,
     drill_name: str,
     database: str | None,
@@ -223,67 +215,31 @@ def _finish(
     restore_seconds: float | None,
     error: str | None,
     assertions: tuple[AssertionOutcome, ...],
+    stderr: str,
 ) -> CompletedRun:
-    run.status = status
-    run.restore_seconds = restore_seconds
-    run.finished_at = datetime.now(UTC)
-    run.error = error
-    for item in assertions:
-        session.add(
-            AssertionResult(
-                run_id=run.id,
-                name=item.name,
-                passed=item.passed,
-                observed=item.observed,
-                expected=item.expected,
-                duration_ms=item.duration_ms,
-            )
+    note = None
+    if status in {STATUS_FAILED, STATUS_ERROR}:
+        note = resolve_note(
+            settings.notes_enabled,
+            stderr or error or "",
+            assertions,
+            client_for(settings),
         )
-    session.commit()
-    log.info("drill finished", drill=drill_name, status=status)
-    return _result(
-        status=status,
-        drill_name=drill_name,
-        run_id=run.id,
-        database=database,
-        dump_path=dump.key if dump is not None else run.dump_key,
-        dump_bytes=dump.size if dump is not None else run.dump_bytes,
-        dump_sha256=dump.sha256 if dump is not None else run.dump_sha256,
-        restore_seconds=restore_seconds,
-        error=error,
-        assertions=assertions,
+    return finish_run(
+        session,
+        run,
+        drill_name,
+        database,
+        dump,
+        status,
+        restore_seconds,
+        error,
+        assertions,
+        note,
     )
 
 
-def _result(
-    *,
-    status: str,
-    drill_name: str,
-    run_id: UUID | None,
-    database: str | None,
-    dump_path: str | None,
-    dump_bytes: int | None,
-    dump_sha256: str | None,
-    restore_seconds: float | None,
-    error: str | None,
-    assertions: tuple[AssertionOutcome, ...],
-) -> CompletedRun:
-    return CompletedRun(
-        status=status,
-        drill_name=drill_name,
-        run_id=run_id,
-        database_name=database,
-        dump_path=dump_path,
-        dump_bytes=dump_bytes,
-        dump_sha256=dump_sha256,
-        restore_seconds=restore_seconds,
-        error=error,
-        assertions=assertions,
-    )
-
-
-def _stored_error(exc: Exception) -> str:
-    text = redact(str(exc)).strip()
-    if len(text) <= _ERROR_LIMIT:
-        return text
-    return text[-_ERROR_LIMIT:]
+def _stderr(exc: Exception, stored: str) -> str:
+    if isinstance(exc, (RestoreFailed, RestoreTimeout)) and exc.stderr_tail:
+        return f"{exc.stderr_tail}\n{stored}"
+    return stored

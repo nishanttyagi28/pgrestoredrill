@@ -18,8 +18,9 @@ from pgrestoredrill.db.urls import swap_database
 from pgrestoredrill.errors import DumpSourceError, RestoreFailed
 from pgrestoredrill.runner.service import execute_drill
 from pgrestoredrill.sources.s3 import RemoteObject
+from tests.integration.preflight_helpers import postgres_16_header
 
-_PAYLOAD = b"not-a-real-dump"
+_PAYLOAD = postgres_16_header()
 
 
 class _Store:
@@ -70,6 +71,7 @@ def test_s3_run_records_the_newest_object_and_deletes_the_temp_file(
     monkeypatch.setattr("pgrestoredrill.runner.acquire.open_s3_store", fake_open)
     monkeypatch.setattr("pgrestoredrill.targets.opening.create_drill_database", fake_create)
     monkeypatch.setattr("pgrestoredrill.runner.service.restore_dump", fake_restore)
+    monkeypatch.setattr("pgrestoredrill.runner.header.pg_restore_major", lambda: 16)
     completed = execute_drill(settings, _config(tmp_path))
     path = held["path"]
     assert isinstance(path, Path)

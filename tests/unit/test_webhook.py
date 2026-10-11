@@ -106,6 +106,24 @@ def test_a_server_error_is_retried_until_success(monkeypatch: pytest.MonkeyPatch
     assert sleeps == [0.5]
 
 
+def test_a_redirect_status_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def post(url: str, payload: dict[str, str], timeout: float) -> int:
+        nonlocal calls
+        calls += 1
+        assert url == "https://alerts.example/hook"
+        assert payload == _PAYLOAD
+        return 302
+
+    monkeypatch.setattr("pgrestoredrill.alerts.webhook.post_json", post)
+    monkeypatch.setattr("pgrestoredrill.alerts.webhook.time.sleep", sleeps.append)
+    assert deliver("https://alerts.example/hook", _PAYLOAD) == 302
+    assert calls == 1
+    assert sleeps == []
+
+
 def test_a_redirect_is_not_followed(monkeypatch: pytest.MonkeyPatch) -> None:
     paths: list[str] = []
 
@@ -140,4 +158,4 @@ def test_a_redirect_is_not_followed(monkeypatch: pytest.MonkeyPatch) -> None:
         server.server_close()
         thread.join(timeout=5)
     assert code == 302
-    assert paths == ["/hook", "/hook", "/hook"]
+    assert paths == ["/hook"]

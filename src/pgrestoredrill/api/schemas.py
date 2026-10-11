@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -51,8 +52,16 @@ class AssertionResultOut(BaseModel):
     duration_ms: int
 
 
+class SuggestionOut(BaseModel):
+    suggestion: Literal[True] = True
+    category: str
+    short_reason: str
+    suggested_next_step: str
+
+
 class RunDetail(RunOut):
     assertions: list[AssertionResultOut]
+    suggestion: SuggestionOut | None = None
 
 
 class AckIn(BaseModel):

@@ -21,6 +21,7 @@ from pgrestoredrill.api.schemas import (
     OpenFailureOut,
     RunDetail,
     RunOut,
+    SuggestionOut,
 )
 from pgrestoredrill.api.state import get_state
 from pgrestoredrill.db.models import AssertionResult, Drill, Run
@@ -141,6 +142,7 @@ def get_run(run_id: UUID, request: Request) -> RunDetail:
             acked_at=base.acked_at,
             note=base.note,
             assertions=[AssertionResultOut.model_validate(item) for item in results],
+            suggestion=_suggestion(run),
         )
 
 
@@ -161,6 +163,16 @@ def ack(run_id: UUID, body: AckIn, request: Request) -> AckOut:
             acked_at=record.acked_at,
             note=record.note,
         )
+
+
+def _suggestion(run: Run) -> SuggestionOut | None:
+    if run.failure_category is None or run.failure_reason is None or run.failure_step is None:
+        return None
+    return SuggestionOut(
+        category=run.failure_category,
+        short_reason=run.failure_reason,
+        suggested_next_step=run.failure_step,
+    )
 
 
 def _session(request: Request) -> Session:
