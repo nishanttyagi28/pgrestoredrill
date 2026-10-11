@@ -1,0 +1,11 @@
+name: sample-s3
+source_kind: s3
+source_uri: backups/
+bucket: pgrestoredrill
+endpoint_url: http://127.0.0.1:9000
+region: us-east-1
+rpo_minutes: 1440
+assertions_file: assertions.yaml
+enabled: true
+restore_timeout_seconds: 120
+statement_timeout_ms: 5000

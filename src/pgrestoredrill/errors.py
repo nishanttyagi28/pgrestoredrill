@@ -8,7 +8,20 @@ class DrillError(Exception):
 
 
 class DumpNotFound(DrillError):
-    """No custom-format dump was found in the source folder."""
+    """No custom-format dump was found."""
+
+
+class DumpSourceError(DrillError):
+    """The dump source could not be read."""
+
+
+class DumpRejected(DrillError):
+    """The listed dump failed a size or age check and was not downloaded."""
+
+    def __init__(self, reason: str, key: str, size: int) -> None:
+        self.key = key
+        self.size = size
+        super().__init__(reason)
 
 
 class TargetNotDrillDatabase(DrillError):

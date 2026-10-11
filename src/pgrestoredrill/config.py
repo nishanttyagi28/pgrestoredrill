@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from pgrestoredrill.db.urls import database_name
@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     database_url: str = ""
     target_url: str = ""
     log_level: str = "INFO"
+    # Empty values leave credential selection to the AWS default chain.
+    s3_access_key: str = Field(default="", repr=False)
+    s3_secret_key: str = Field(default="", repr=False)
+    # Empty refuses every authenticated API request.
+    admin_token: str = Field(default="", repr=False)
 
     @field_validator("database_url", "target_url")
     @classmethod

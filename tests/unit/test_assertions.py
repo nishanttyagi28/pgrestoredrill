@@ -110,6 +110,6 @@ def test_drill_file_and_relative_paths(tmp_path: Path) -> None:
     assert drill.restore_timeout_seconds == 60
     assert resolve_from_config(config, drill.source_uri) == (tmp_path / "dumps").resolve()
     bad = tmp_path / "bad.yaml"
-    bad.write_text("name: sample\nsource_kind: s3\n", encoding="utf-8")
+    bad.write_text("name: sample\nsource_kind: ftp\n", encoding="utf-8")
     with pytest.raises(ValueError, match="invalid drill config"):
         load_drill(bad)

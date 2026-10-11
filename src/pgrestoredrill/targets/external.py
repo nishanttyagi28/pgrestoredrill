@@ -41,6 +41,33 @@ FROM pg_proc AS p
 JOIN pg_namespace AS n ON n.oid = p.pronamespace
 WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
   AND p.prokind IN ('f', 'p')
+UNION ALL
+SELECT 1
+FROM pg_proc AS p
+JOIN pg_namespace AS n ON n.oid = p.pronamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+  AND p.prokind = 'a'
+UNION ALL
+SELECT 1 FROM pg_largeobject_metadata
+UNION ALL
+SELECT 1
+FROM pg_collation AS c
+JOIN pg_namespace AS n ON n.oid = c.collnamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+UNION ALL
+SELECT 1
+FROM pg_operator AS o
+JOIN pg_namespace AS n ON n.oid = o.oprnamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+UNION ALL
+SELECT 1
+FROM pg_ts_config AS cfg
+JOIN pg_namespace AS n ON n.oid = cfg.cfgnamespace
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+UNION ALL
+SELECT 1 FROM pg_publication
+UNION ALL
+SELECT 1 FROM pg_foreign_data_wrapper
 LIMIT 1
 """
 
