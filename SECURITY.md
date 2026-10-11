@@ -23,13 +23,17 @@ The user message is the only prompt. It contains:
 - the assertion names, joined by commas, or `none` when the run has no assertion results
 - the last 2000 characters of the stderr tail after masking
 
-It does not include assertion SQL, observed values, or expected values as their own fields. Before the tail is added, the mask replaces:
+It does not include assertion SQL, observed values, or expected values as their own fields. Before the tail is added, the mask:
 
-- URL userinfo passwords and `password=` query values with `***`
-- email addresses, full URLs, IPv4 addresses, dotted hostnames, and `localhost` with `[redacted]`
-- assignments to `password`, `passwd`, `pwd`, `secret`, `token`, and `api_key` with `name=***`
-- assignments to `host`, `hostname`, and `hostaddr` with `name=***`
-- assignments to `observed` and `expected` with `name=***`
+- drops `DETAIL:` and `CONTEXT:` lines, and on a mixed line drops from that field through the end of the line
+- masks the value after `Key (...)=` and the row after `COPY <table>, line N:`
+- replaces URL userinfo passwords and `password=` query values with `***`
+- replaces email addresses, full URLs, IPv4 addresses, IPv6 addresses, dotted hostnames, and `localhost` with `[redacted]`
+- replaces assignments to `password`, `passwd`, `pwd`, `PGPASSWORD`, `secret`, `token`, and `api_key` with `name=***`
+- replaces assignments to `host`, `hostname`, and `hostaddr` with `name=***`
+- replaces assignments to `observed` and `expected` with `name=***`
+- replaces the quoted name in `host name "..."` and `host "..."` with `[redacted]`
+- replaces `sk-` tokens and base64 or hex runs of 24 or more characters with `[redacted]`
 
 A value that appears in the stderr tail without one of those shapes can remain in the prompt. Do not enable notes on stderr you are not willing to send to the configured endpoint.
 

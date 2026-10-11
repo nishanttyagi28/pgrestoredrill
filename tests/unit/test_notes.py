@@ -107,6 +107,35 @@ def test_the_prompt_keeps_names_and_drops_secrets() -> None:
     assert "observed=***" in prompt
 
 
+def test_row_data_does_not_reach_the_client() -> None:
+    stderr = (
+        "postgres://alice:S3cretPw@db.internal.corp:5432/prod, PGPASSWORD=hunter2, "
+        'fe80::1, could not translate host name "metadata", '
+        "DETAIL: Key (ssn)=(123-45-6789) already exists., "
+        'CONTEXT: COPY customers, line 1: "7Jane Doejane@corp.com'
+        "sk-abcdefghijklmnopqrstuvwxyz0123456789"
+    )
+    client = _Fake(json.dumps(_VALID))
+    resolve_note(True, stderr, (), client)
+    assert len(client.prompts) == 1
+    for hidden in (
+        "alice",
+        "S3cretPw",
+        "db.internal.corp",
+        "prod",
+        "hunter2",
+        "fe80::1",
+        "metadata",
+        "ssn",
+        "123-45-6789",
+        "customers",
+        "Jane",
+        "jane@corp.com",
+        "sk-abcdefghijklmnopqrstuvwxyz0123456789",
+    ):
+        assert hidden not in client.prompts[0]
+
+
 def test_disabled_and_a_rule_hit_do_not_call() -> None:
     client = _Fake(json.dumps(_VALID))
     assert resolve_note(False, "mystery failure", (), client) is None
