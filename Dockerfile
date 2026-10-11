@@ -2,11 +2,9 @@ FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    UV_PYTHON_DOWNLOADS=never \
-    UV_INSTALL_DIR=/usr/local/bin
+    UV_PYTHON_DOWNLOADS=never
 
-ADD https://astral.sh/uv/0.12.24/install.sh /tmp/install-uv.sh
-RUN sh /tmp/install-uv.sh && rm /tmp/install-uv.sh
+COPY --from=ghcr.io/astral-sh/uv:0.12.24@sha256:3af4716e991d6956a41e573eab705d0ee08500cd829ed30293eb8472f372c65a /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
@@ -30,7 +28,7 @@ RUN apt-get update \
         "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
         > /etc/apt/sources.list.d/pgdg.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends postgresql-client-16 \
+    && apt-get install -y --no-install-recommends postgresql-client-17 \
     && apt-get purge -y curl \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
@@ -41,8 +39,7 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 
 RUN groupadd --gid 10001 app \
-    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin app \
-    && chown -R app:app /app
+    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin app
 
 USER 10001
 EXPOSE 8000
