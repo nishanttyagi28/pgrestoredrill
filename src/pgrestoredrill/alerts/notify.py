@@ -48,6 +48,7 @@ def _dispatch(session: Session, url: str, run_id: UUID, now: datetime) -> None:
             status=run.status,
             reason=run.error or "run failed",
             now=now,
+            suggestion=_suggestion(run),
         )
     status, passed_id = rpo_for_drill(session, drill, now)
     if status != RPO_BREACHED:
@@ -63,6 +64,7 @@ def _dispatch(session: Session, url: str, run_id: UUID, now: datetime) -> None:
         status=RPO_BREACHED,
         reason="drill is outside its rpo",
         now=now,
+        suggestion=_suggestion(run),
     )
 
 
@@ -77,6 +79,7 @@ def _once(
     status: str,
     reason: str,
     now: datetime,
+    suggestion: dict[str, str],
 ) -> None:
     row = Alert(
         drill_id=drill_id,
@@ -95,10 +98,9 @@ def _once(
         if _duplicate_dedup(exc):
             return
         raise
-    code = deliver(
-        url,
-        {"drill": drill_name, "status": status, "reason": reason, "run_id": str(run_id)},
-    )
+    payload = {"drill": drill_name, "status": status, "reason": reason, "run_id": str(run_id)}
+    payload.update(suggestion)
+    code = deliver(url, payload)
     _save_delivery(session, row.id, code, now)
 
 
@@ -110,6 +112,17 @@ def _save_delivery(session: Session, alert_id: int, code: int | None, now: datet
     else:
         session.execute(update(Alert).where(Alert.id == alert_id).values(response_status=code))
     session.commit()
+
+
+def _suggestion(run: Run) -> dict[str, str]:
+    if not run.failure_category or not run.failure_reason or not run.failure_step:
+        return {}
+    return {
+        "suggestion": "true",
+        "suggestion_category": run.failure_category,
+        "suggestion_reason": run.failure_reason,
+        "suggestion_step": run.failure_step,
+    }
 
 
 def _duplicate_dedup(exc: IntegrityError) -> bool:

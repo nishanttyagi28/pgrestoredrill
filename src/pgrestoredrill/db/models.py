@@ -71,6 +71,9 @@ class Run(Base):
     acked_by: Mapped[str | None] = mapped_column(String(200), nullable=True)
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_step: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class AssertionResult(Base):

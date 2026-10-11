@@ -10,10 +10,10 @@ from sqlalchemy.orm import Session
 
 from pgrestoredrill.alerts.notify import notify_after_run
 from pgrestoredrill.assertions.loader import load_assertions
-from pgrestoredrill.assertions.models import AssertionSpec
+from pgrestoredrill.assertions.models import AssertionOutcome, AssertionSpec
 from pgrestoredrill.assertions.runner import run_assertions
 from pgrestoredrill.config import Settings
-from pgrestoredrill.db.models import STATUS_ERROR, STATUS_FAILED, STATUS_PASSED, Drill
+from pgrestoredrill.db.models import STATUS_ERROR, STATUS_FAILED, STATUS_PASSED, Drill, Run
 from pgrestoredrill.db.session import make_engine
 from pgrestoredrill.db.urls import database_name
 from pgrestoredrill.errors import (
@@ -23,6 +23,8 @@ from pgrestoredrill.errors import (
     RestoreFailed,
     RestoreTimeout,
 )
+from pgrestoredrill.notes.client import client_for
+from pgrestoredrill.notes.compose import resolve_note
 from pgrestoredrill.runner.acquire import acquire_dump
 from pgrestoredrill.runner.finish import completed_result, finish_run, stored_error
 from pgrestoredrill.runner.preflight import dump_rejection
@@ -79,26 +81,41 @@ def _execute(
             dump = acquire_dump(settings, spec, config_path)
         except DumpNotFound as exc:
             run = start_run(session, drill.id, None)
-            return finish_run(session, run, spec.name, None, None, STATUS_ERROR, None, str(exc), ())
+            return _close(
+                session, settings, run, spec.name, None, None, STATUS_ERROR, None, str(exc), (), ""
+            )
         except DumpRejected as exc:
             run = start_run(session, drill.id, None)
             run.dump_key = exc.key
             run.dump_bytes = exc.size
-            return finish_run(
-                session, run, spec.name, None, None, STATUS_FAILED, None, str(exc), ()
+            return _close(
+                session,
+                settings,
+                run,
+                spec.name,
+                None,
+                None,
+                STATUS_FAILED,
+                None,
+                str(exc),
+                (),
+                "",
             )
         except DumpSourceError as exc:
             run = start_run(session, drill.id, None)
-            return finish_run(
+            detail = stored_error(exc)
+            return _close(
                 session,
+                settings,
                 run,
                 spec.name,
                 None,
                 None,
                 STATUS_ERROR,
                 None,
-                stored_error(exc),
+                detail,
                 (),
+                detail,
             )
         return _restore(session, settings, spec, drill, dump, assertions)
     finally:
@@ -122,7 +139,9 @@ def _restore(
         now=datetime.now(UTC),
     )
     if reason is not None:
-        return finish_run(session, run, spec.name, None, dump, STATUS_FAILED, None, reason, ())
+        return _close(
+            session, settings, run, spec.name, None, dump, STATUS_FAILED, None, reason, (), reason
+        )
     database: str | None = None
     try:
         with open_restore_url(settings) as restore_url:
@@ -138,8 +157,9 @@ def _restore(
                 statement_timeout_ms=spec.statement_timeout_ms,
             )
             status = STATUS_PASSED if all(item.passed for item in results) else STATUS_FAILED
-            return finish_run(
+            return _close(
                 session,
+                settings,
                 run,
                 spec.name,
                 database,
@@ -148,17 +168,62 @@ def _restore(
                 outcome.duration_seconds,
                 None,
                 tuple(results),
+                outcome.stderr_tail,
             )
     except Exception as exc:
         seconds = exc.duration_seconds if isinstance(exc, (RestoreFailed, RestoreTimeout)) else None
-        return finish_run(
+        detail = stored_error(exc)
+        return _close(
             session,
+            settings,
             run,
             spec.name,
             database,
             dump,
             STATUS_ERROR,
             seconds,
-            stored_error(exc),
+            detail,
             (),
+            _stderr(exc, detail),
         )
+
+
+def _close(
+    session: Session,
+    settings: Settings,
+    run: Run,
+    drill_name: str,
+    database: str | None,
+    dump: LocalDump | None,
+    status: str,
+    restore_seconds: float | None,
+    error: str | None,
+    assertions: tuple[AssertionOutcome, ...],
+    stderr: str,
+) -> CompletedRun:
+    note = None
+    if status in {STATUS_FAILED, STATUS_ERROR}:
+        note = resolve_note(
+            settings.notes_enabled,
+            stderr or error or "",
+            assertions,
+            client_for(settings),
+        )
+    return finish_run(
+        session,
+        run,
+        drill_name,
+        database,
+        dump,
+        status,
+        restore_seconds,
+        error,
+        assertions,
+        note,
+    )
+
+
+def _stderr(exc: Exception, stored: str) -> str:
+    if isinstance(exc, (RestoreFailed, RestoreTimeout)) and exc.stderr_tail:
+        return f"{exc.stderr_tail}\n{stored}"
+    return stored

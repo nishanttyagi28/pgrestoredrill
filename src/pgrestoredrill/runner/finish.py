@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from pgrestoredrill.assertions.models import AssertionOutcome
 from pgrestoredrill.db.models import AssertionResult, Run
+from pgrestoredrill.notes.schema import FailureNote
 from pgrestoredrill.redact import redact
 from pgrestoredrill.runner.report import CompletedRun
 from pgrestoredrill.sources.local import LocalDump
@@ -28,11 +29,16 @@ def finish_run(
     restore_seconds: float | None,
     error: str | None,
     assertions: tuple[AssertionOutcome, ...],
+    note: FailureNote | None = None,
 ) -> CompletedRun:
     run.status = status
     run.restore_seconds = restore_seconds
     run.finished_at = datetime.now(UTC)
     run.error = error
+    if note is not None:
+        run.failure_category = note.category
+        run.failure_reason = note.short_reason
+        run.failure_step = note.suggested_next_step
     for item in assertions:
         session.add(
             AssertionResult(

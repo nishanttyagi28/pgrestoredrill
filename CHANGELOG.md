@@ -31,6 +31,13 @@
 
 ### Added
 
+- Optional failure suggestions. `NOTES_ENABLED` defaults to false. Rules label
+  the restore stderr and assertion results first. A model is called only when
+  notes are enabled and the rule result is unknown, through an OpenAI-compatible
+  HTTP endpoint (`NOTES_URL`, `NOTES_MODEL`, `NOTES_API_KEY`). The prompt is the
+  masked stderr tail and the assertion names. A reply is stored only when it
+  matches the note schema. `GET /runs/{id}` and the alert payload include it,
+  marked as a suggestion. It does not ack, retry, or change the run.
 - Container image based on `python:3.12-slim` pinned by digest. uv 0.12.24 is
   copied from its pinned image. The image installs `postgresql-client-16` so
   `pg_restore` matches the Postgres 16 target. A newer `pg_restore` sends
