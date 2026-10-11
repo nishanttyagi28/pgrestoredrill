@@ -7,6 +7,7 @@
 - A failure-note prompt drops `DETAIL:` and `CONTEXT:` lines, masks IPv6
   addresses, quoted host names, `PGPASSWORD` assignments, `sk-` tokens, and
   base64 or hex runs of 24 or more characters.
+- A note response larger than 64 KiB is discarded. The rule result is kept.
 
 ## [0.1.0] - 2026-10-11
 

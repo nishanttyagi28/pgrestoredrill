@@ -77,6 +77,33 @@ def test_complete_reads_the_message_content() -> None:
     assert b'"stream":false' in body
 
 
+def test_a_response_over_64_kib_is_rejected() -> None:
+    body = b"x" * (64 * 1024 + 1)
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length:
+                self.rfile.read(length)
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server, thread = _serve(_Handler)
+    try:
+        port = server.server_address[1]
+        with pytest.raises(NoteError) as caught:
+            HttpNoteClient(f"http://127.0.0.1:{port}/v1", "test-model", _KEY).complete("classify")
+    finally:
+        _stop(server, thread)
+    assert str(caught.value) == "note request failed"
+    assert _KEY not in str(caught.value)
+
+
 def test_a_redirect_is_one_failed_attempt() -> None:
     paths: list[str] = []
 

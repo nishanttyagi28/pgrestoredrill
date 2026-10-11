@@ -11,6 +11,7 @@ from typing import IO, Protocol
 from pgrestoredrill.config import Settings
 
 _TIMEOUT_SECONDS = 10.0
+_MAX_RESPONSE = 64 * 1024
 
 
 class NoteError(Exception):
@@ -61,13 +62,13 @@ class HttpNoteClient:
         request = urllib.request.Request(self._url, data=body, headers=headers, method="POST")
         try:
             with _OPENER.open(request, timeout=_TIMEOUT_SECONDS) as response:
-                raw = response.read()
+                raw = response.read(_MAX_RESPONSE + 1)
                 code = int(response.status)
         except urllib.error.HTTPError:
             raise NoteError from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise NoteError from None
-        if code < 200 or code >= 300:
+        if len(raw) > _MAX_RESPONSE or code < 200 or code >= 300:
             raise NoteError
         return _content(raw)
 
