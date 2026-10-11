@@ -12,4 +12,4 @@ resources:
   - cronjob.yaml
 images:
   - name: ghcr.io/nishanttyagi28/pgrestoredrill
-    newTag: "0.0.1"
+    newTag: "v0.1.0"
