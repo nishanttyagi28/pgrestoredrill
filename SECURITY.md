@@ -15,6 +15,7 @@ Put real tokens in the environment or in the Kubernetes Secret. Leave the exampl
 Notes are off unless `NOTES_ENABLED` is true. A model is called only when notes are on, `NOTES_URL` and `NOTES_MODEL` are both set, and the rule classifier returned `unknown`. A rule hit does not call the model. A disabled installation does not call the model and does not store a note.
 
 The call is one HTTP POST to `{NOTES_URL}/chat/completions`. The body is JSON with `model` set to `NOTES_MODEL`, one user message, and `stream` set to false. When `NOTES_API_KEY` is non-empty, the request sends it as an `Authorization: Bearer` header to that endpoint. The key is not part of the prompt and is not logged. The client waits 10 seconds, tries once, and does not follow a redirect. A failed call raises `note request failed` with no URL and no key in the message. The rule result is kept.
+A notes response larger than 64 KiB is discarded and the rule result is kept.
 
 The user message is the only prompt. It contains:
 
