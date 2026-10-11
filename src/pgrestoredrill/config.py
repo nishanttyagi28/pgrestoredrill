@@ -12,6 +12,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pgrestoredrill.db.urls import database_name
 
 
+def _public_http_url(value: str, error: str) -> str:
+    text = value.strip()
+    if text == "":
+        return ""
+    parts = urlsplit(text)
+    if parts.scheme not in {"http", "https"} or parts.hostname is None:
+        raise ValueError(error)
+    if parts.username is not None or parts.password is not None:
+        raise ValueError(error)
+    return text
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -36,6 +48,11 @@ class Settings(BaseSettings):
     admin_token: str = Field(default="", repr=False)
     # Empty skips alerts. The URL is not logged.
     alert_webhook_url: str = Field(default="", repr=False)
+    # Off skips failure suggestions. The URL and key are not logged.
+    notes_enabled: bool = False
+    notes_url: str = Field(default="", repr=False)
+    notes_model: str = ""
+    notes_api_key: str = Field(default="", repr=False)
 
     @field_validator("database_url")
     @classmethod
@@ -72,12 +89,14 @@ class Settings(BaseSettings):
     @field_validator("alert_webhook_url")
     @classmethod
     def _webhook(cls, value: str) -> str:
-        text = value.strip()
-        if text == "":
-            return ""
-        parts = urlsplit(text)
-        if parts.scheme not in {"http", "https"} or parts.hostname is None:
-            raise ValueError("invalid alert webhook")
-        if parts.username is not None or parts.password is not None:
-            raise ValueError("invalid alert webhook")
-        return text
+        return _public_http_url(value, "invalid alert webhook")
+
+    @field_validator("notes_url")
+    @classmethod
+    def _notes_url(cls, value: str) -> str:
+        return _public_http_url(value, "invalid notes url")
+
+    @field_validator("notes_model")
+    @classmethod
+    def _notes_model(cls, value: str) -> str:
+        return value.strip()
